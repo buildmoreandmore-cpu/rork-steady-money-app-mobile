@@ -65,16 +65,22 @@ function RootLayoutNav() {
     setIsAuthenticated(false);
   };
 
+  // Re-check status when segments change (e.g., after completing onboarding)
+  useEffect(() => {
+    checkAppStatus();
+  }, [segments]);
+
   useEffect(() => {
     if (isOnboardingComplete === null || isAuthenticated === null) return;
 
     const inOnboarding = segments[0] === 'onboarding';
     const inAuth = segments[0] === 'auth';
+    const inTabs = segments[0] === '(tabs)';
 
     if (!isOnboardingComplete && !inOnboarding) {
       // Not onboarded - go to onboarding
       router.replace('/onboarding');
-    } else if (isOnboardingComplete && biometricEnabled && !isAuthenticated && !inAuth) {
+    } else if (isOnboardingComplete && biometricEnabled && !isAuthenticated && !inAuth && !inTabs) {
       // Onboarded, biometric enabled, but not authenticated - go to auth
       router.replace('/auth');
     } else if (isOnboardingComplete && isAuthenticated && (inOnboarding || inAuth)) {
