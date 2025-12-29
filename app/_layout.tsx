@@ -18,15 +18,16 @@ function RootLayoutNav() {
   const segments = useSegments();
   const [isOnboardingComplete, setIsOnboardingComplete] = useState<boolean | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [biometricEnabled, setBiometricEnabled] = useState<boolean>(false);
 
   useEffect(() => {
     checkAppStatus();
   }, []);
 
-  // Re-authenticate when app comes to foreground
+  // Re-authenticate when app comes to foreground (only if biometric is enabled)
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'active' && isOnboardingComplete) {
+      if (nextAppState === 'active' && isOnboardingComplete && biometricEnabled) {
         checkAuthStatus();
       }
     });
@@ -34,18 +35,27 @@ function RootLayoutNav() {
     return () => {
       subscription.remove();
     };
-  }, [isOnboardingComplete]);
+  }, [isOnboardingComplete, biometricEnabled]);
 
   const checkAppStatus = async () => {
     try {
       const completed = await AsyncStorage.getItem('onboarding_completed');
       const authenticated = await AsyncStorage.getItem('authenticated');
+      const bioEnabled = await AsyncStorage.getItem('biometric_enabled');
+
       setIsOnboardingComplete(completed === 'true');
-      setIsAuthenticated(authenticated === 'true');
+      setBiometricEnabled(bioEnabled === 'true');
+
+      // If biometric is not enabled, consider user authenticated
+      if (bioEnabled !== 'true') {
+        setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(authenticated === 'true');
+      }
     } catch (error) {
       console.error('Error checking app status:', error);
       setIsOnboardingComplete(false);
-      setIsAuthenticated(false);
+      setIsAuthenticated(true); // Default to authenticated if error
     }
   };
 
@@ -64,14 +74,14 @@ function RootLayoutNav() {
     if (!isOnboardingComplete && !inOnboarding) {
       // Not onboarded - go to onboarding
       router.replace('/onboarding');
-    } else if (isOnboardingComplete && !isAuthenticated && !inAuth) {
-      // Onboarded but not authenticated - go to auth
+    } else if (isOnboardingComplete && biometricEnabled && !isAuthenticated && !inAuth) {
+      // Onboarded, biometric enabled, but not authenticated - go to auth
       router.replace('/auth');
     } else if (isOnboardingComplete && isAuthenticated && (inOnboarding || inAuth)) {
       // Fully authenticated - go to main app
       router.replace('/(tabs)');
     }
-  }, [isOnboardingComplete, isAuthenticated, segments]);
+  }, [isOnboardingComplete, isAuthenticated, biometricEnabled, segments]);
 
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
@@ -85,6 +95,15 @@ function RootLayoutNav() {
           headerShown: true,
           headerTitle: "Scout's Pick",
           headerStyle: { backgroundColor: Colors.surface },
+          headerTitleStyle: { color: Colors.text, fontWeight: '600' },
+        }}
+      />
+      <Stack.Screen
+        name="settings"
+        options={{
+          headerShown: true,
+          headerTitle: "Settings",
+          headerStyle: { backgroundColor: Colors.background },
           headerTitleStyle: { color: Colors.text, fontWeight: '600' },
         }}
       />

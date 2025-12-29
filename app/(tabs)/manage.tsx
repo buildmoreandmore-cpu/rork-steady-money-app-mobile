@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import {
   CreditCard,
   Receipt,
@@ -26,6 +27,7 @@ import {
   Smartphone,
   MessageSquare,
   CheckCircle,
+  Settings,
 } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
@@ -52,6 +54,7 @@ type TabType = 'subscriptions' | 'bills' | 'profiles';
 
 export default function ManageScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('subscriptions');
   const [showNegotiation, setShowNegotiation] = useState(false);
   const [selectedBill, setSelectedBill] = useState<NegotiableBill | null>(null);
@@ -221,6 +224,12 @@ export default function ManageScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.title}>Control Center</Text>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => router.push('/settings')}
+          >
+            <Settings size={22} color={Colors.textSecondary} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.tabs}>
@@ -469,6 +478,9 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 12,
     marginBottom: 20,
   },
@@ -477,6 +489,14 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: Colors.text,
     letterSpacing: -0.5,
+  },
+  settingsButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tabs: {
     flexDirection: 'row',
