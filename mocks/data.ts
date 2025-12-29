@@ -1,4 +1,4 @@
-import { Transaction, Subscription, Bill, ScoutAction, FinancialSnapshot, TimelinePoint, Profile } from '@/types';
+import { Transaction, Subscription, Bill, ScoutAction, FinancialSnapshot, TimelinePoint, Profile, NegotiableBill } from '@/types';
 
 export const mockSnapshot: FinancialSnapshot = {
   netWorth: 47250,
@@ -185,6 +185,37 @@ export const mockTimeline: TimelinePoint[] = [
 export const mockProfiles: Profile[] = [
   { id: '1', name: 'Personal', type: 'personal', isActive: true },
   { id: '2', name: 'Side Business', type: 'business', isActive: false },
+  { id: '3', name: 'Family', type: 'family', isActive: false },
+];
+
+export const mockNegotiableBills: NegotiableBill[] = [
+  {
+    id: '1',
+    name: 'Xfinity Internet',
+    currentAmount: 89,
+    potentialSavings: 35,
+    successRate: 82,
+    icon: 'wifi',
+    diyTip: "Ask for the 'Loyalty Department' directly. Mention a local fiber competitor—they usually have an unadvertised match rate.",
+  },
+  {
+    id: '2',
+    name: 'AT&T Wireless',
+    currentAmount: 145,
+    potentialSavings: 25,
+    successRate: 68,
+    icon: 'smartphone',
+    diyTip: "Check if you qualify for any employer or alumni discounts. Many people miss these hidden savings.",
+  },
+  {
+    id: '3',
+    name: 'Electric Company',
+    currentAmount: 142,
+    potentialSavings: 18,
+    successRate: 45,
+    icon: 'zap',
+    diyTip: "Ask about budget billing or time-of-use rates. Shifting usage to off-peak hours can save 15-20%.",
+  },
 ];
 
 export const scoutGreetings = [

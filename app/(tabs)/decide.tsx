@@ -5,13 +5,13 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  Animated,
-  PanResponder,
+  GestureResponderEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowRight, Calendar, DollarSign, Target } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
+import { feedback } from '@/services/feedback';
 
 interface SliderProps {
   label: string;
@@ -23,26 +23,25 @@ interface SliderProps {
 
 function CustomSlider({ label, leftLabel, rightLabel, value, onValueChange }: SliderProps) {
   const sliderWidth = useRef(0);
-  const pan = useRef(new Animated.Value(0)).current;
+  const sliderX = useRef(0);
+  const lastHapticValue = useRef(value);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (_, gestureState) => {
-        pan.setOffset(gestureState.x0);
-      },
-      onPanResponderMove: (evt) => {
-        if (sliderWidth.current > 0) {
-          const newValue = Math.max(0, Math.min(1, evt.nativeEvent.locationX / sliderWidth.current));
-          onValueChange(newValue);
-        }
-      },
-      onPanResponderRelease: () => {
-        pan.flattenOffset();
-      },
-    })
-  ).current;
+  const handleTouch = useCallback((evt: GestureResponderEvent) => {
+    if (sliderWidth.current > 0) {
+      const touchX = evt.nativeEvent.pageX - sliderX.current;
+      const newValue = Math.max(0, Math.min(1, touchX / sliderWidth.current));
+
+      // Trigger haptic every 10% change
+      const lastStep = Math.round(lastHapticValue.current * 10);
+      const newStep = Math.round(newValue * 10);
+      if (lastStep !== newStep) {
+        feedback.onSliderAdjusted();
+        lastHapticValue.current = newValue;
+      }
+
+      onValueChange(newValue);
+    }
+  }, [onValueChange]);
 
   return (
     <View style={styles.sliderContainer}>
@@ -51,8 +50,14 @@ function CustomSlider({ label, leftLabel, rightLabel, value, onValueChange }: Sl
         style={styles.sliderTrack}
         onLayout={(e) => {
           sliderWidth.current = e.nativeEvent.layout.width;
+          e.target.measure((x, y, width, height, pageX) => {
+            sliderX.current = pageX;
+          });
         }}
-        {...panResponder.panHandlers}
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => true}
+        onResponderGrant={handleTouch}
+        onResponderMove={handleTouch}
       >
         <View style={[styles.sliderFill, { width: `${value * 100}%` }]} />
         <View style={[styles.sliderThumb, { left: `${value * 100}%` }]} />
@@ -67,23 +72,26 @@ function CustomSlider({ label, leftLabel, rightLabel, value, onValueChange }: Sl
 
 export default function DecideScreen() {
   const insets = useSafeAreaInsets();
-  
-  const [savingsDebt, setSavingsDebt] = useState(0.6);
-  const [lifestyle, setLifestyle] = useState(0.5);
-  const [timeline, setTimeline] = useState(0.5);
+
+  // Intent-based budgeting: Fixed, Strategic, Lifestyle (matching landing page)
+  const [fixed, setFixed] = useState(0.5);        // Fixed costs (rent, bills, etc.)
+  const [strategic, setStrategic] = useState(0.3); // Strategic (savings, debt payoff)
+  const [lifestyle, setLifestyle] = useState(0.2); // Lifestyle (fun, discretionary)
 
   const calculateProjections = useCallback(() => {
     const baseDebtFreeMonths = 24;
     const baseEmergencyMonths = 18;
     const baseBreathingRoom = 450;
 
-    const debtMultiplier = 1 + (savingsDebt - 0.5) * 0.8;
-    const timelineMultiplier = 1 - (timeline - 0.5) * 0.4;
-    const lifestyleImpact = (lifestyle - 0.5) * 200;
+    // More strategic allocation = faster debt payoff
+    const strategicMultiplier = 1 + (strategic - 0.3) * 1.5;
+    // Lower fixed costs = more room for growth
+    const fixedImpact = (0.5 - fixed) * 0.5;
+    const lifestyleImpact = (lifestyle - 0.2) * 300;
 
-    const debtFreeMonths = Math.round(baseDebtFreeMonths * debtMultiplier * timelineMultiplier);
-    const emergencyMonths = Math.round(baseEmergencyMonths * (2 - debtMultiplier) * timelineMultiplier);
-    const breathingRoom = Math.round(baseBreathingRoom - lifestyleImpact);
+    const debtFreeMonths = Math.round(baseDebtFreeMonths / strategicMultiplier);
+    const emergencyMonths = Math.round(baseEmergencyMonths / (strategicMultiplier + fixedImpact));
+    const breathingRoom = Math.round(baseBreathingRoom + (lifestyle * 500) - (fixed * 200));
 
     const debtFreeDate = new Date();
     debtFreeDate.setMonth(debtFreeDate.getMonth() + debtFreeMonths);
@@ -101,8 +109,11 @@ export default function DecideScreen() {
         year: 'numeric',
       }),
       breathingRoom: Math.max(100, breathingRoom),
+      fixedPercent: Math.round(fixed * 100),
+      strategicPercent: Math.round(strategic * 100),
+      lifestylePercent: Math.round(lifestyle * 100),
     };
-  }, [savingsDebt, lifestyle, timeline]);
+  }, [fixed, strategic, lifestyle]);
 
   const projections = calculateProjections();
 
@@ -116,33 +127,33 @@ export default function DecideScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>What if...</Text>
           <Text style={styles.subtitle}>
-            Adjust the sliders to see how different choices affect your future
+            Plan your intent, not your limits. Adjust sliders to see your future.
           </Text>
         </View>
 
         <View style={styles.slidersSection}>
           <CustomSlider
-            label="Put more toward:"
-            leftLabel="Savings"
-            rightLabel="Debt payoff"
-            value={savingsDebt}
-            onValueChange={setSavingsDebt}
+            label={`Fixed (Living) - ${projections.fixedPercent}%`}
+            leftLabel="Less"
+            rightLabel="More"
+            value={fixed}
+            onValueChange={setFixed}
           />
-          
+
           <CustomSlider
-            label="Lifestyle spending:"
+            label={`Strategic (Growth) - ${projections.strategicPercent}%`}
+            leftLabel="Less"
+            rightLabel="More"
+            value={strategic}
+            onValueChange={setStrategic}
+          />
+
+          <CustomSlider
+            label={`Lifestyle (Fun) - ${projections.lifestylePercent}%`}
             leftLabel="Less"
             rightLabel="More"
             value={lifestyle}
             onValueChange={setLifestyle}
-          />
-          
-          <CustomSlider
-            label="Timeline:"
-            leftLabel="Steadier"
-            rightLabel="Faster"
-            value={timeline}
-            onValueChange={setTimeline}
           />
         </View>
 
@@ -190,18 +201,24 @@ export default function DecideScreen() {
         </View>
 
         <View style={styles.actionsSection}>
-          <TouchableOpacity style={styles.primaryActionButton}>
+          <TouchableOpacity
+            style={styles.primaryActionButton}
+            onPress={() => feedback.onDecisionConfirmed()}
+          >
             <Text style={styles.primaryActionText}>Save this plan</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.secondaryActionButton}>
+
+          <TouchableOpacity
+            style={styles.secondaryActionButton}
+            onPress={() => feedback.onButtonPress()}
+          >
             <Text style={styles.secondaryActionText}>Try another scenario</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.scoutNote}>
           <Text style={styles.scoutNoteText}>
-            💡 Scout&apos;s tip: Most people find balance around 60% debt focus. You&apos;re at {Math.round(savingsDebt * 100)}%.
+            💡 Scout&apos;s tip: A balanced split is 50% Fixed, 30% Strategic, 20% Lifestyle. More Strategic = earlier freedom.
           </Text>
         </View>
       </ScrollView>

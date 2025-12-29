@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,14 +7,46 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { Shield, DollarSign, Clock, CheckCircle, ExternalLink } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
 import { mockScoutActions } from '@/mocks/data';
+import { feedback } from '@/services/feedback';
+
+interface ComparisonTool {
+  name: string;
+  description: string;
+  url: string;
+}
 
 export default function ActionDetailScreen() {
   const router = useRouter();
   const action = mockScoutActions[0];
+
+  const comparisonTools: ComparisonTool[] = [
+    {
+      name: 'The Zebra',
+      description: 'Compare rates from 100+ companies',
+      url: 'https://www.thezebra.com/auto-insurance/',
+    },
+    {
+      name: 'Policygenius',
+      description: 'Free quotes, no spam',
+      url: 'https://www.policygenius.com/auto-insurance/',
+    },
+  ];
+
+  const openLink = useCallback(async (url: string) => {
+    try {
+      await WebBrowser.openBrowserAsync(url, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.POPOVER,
+        controlsColor: Colors.primary,
+      });
+    } catch (error) {
+      console.error('Error opening browser:', error);
+    }
+  }, []);
 
   const steps = [
     {
@@ -40,6 +72,7 @@ export default function ActionDetailScreen() {
   ];
 
   const handleComplete = () => {
+    feedback.onActionCompleted(); // Celebration for completing an action
     router.back();
   };
 
@@ -93,20 +126,19 @@ export default function ActionDetailScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick comparison tools</Text>
-          <TouchableOpacity style={styles.linkCard}>
-            <View style={styles.linkContent}>
-              <Text style={styles.linkTitle}>The Zebra</Text>
-              <Text style={styles.linkDescription}>Compare rates from 100+ companies</Text>
-            </View>
-            <ExternalLink size={18} color={Colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.linkCard}>
-            <View style={styles.linkContent}>
-              <Text style={styles.linkTitle}>Policygenius</Text>
-              <Text style={styles.linkDescription}>Free quotes, no spam</Text>
-            </View>
-            <ExternalLink size={18} color={Colors.primary} />
-          </TouchableOpacity>
+          {comparisonTools.map((tool, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.linkCard}
+              onPress={() => openLink(tool.url)}
+            >
+              <View style={styles.linkContent}>
+                <Text style={styles.linkTitle}>{tool.name}</Text>
+                <Text style={styles.linkDescription}>{tool.description}</Text>
+              </View>
+              <ExternalLink size={18} color={Colors.primary} />
+            </TouchableOpacity>
+          ))}
         </View>
 
         <View style={styles.scoutNote}>

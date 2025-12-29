@@ -12,6 +12,7 @@ import {
   Receipt,
   Sparkles,
   ChevronRight,
+  ChevronLeft,
   Tv,
   Music,
   Cloud,
@@ -22,10 +23,15 @@ import {
   Wifi,
   AlertCircle,
   Users,
+  Smartphone,
+  MessageSquare,
+  CheckCircle,
 } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
-import { mockSubscriptions, mockBills, mockScoutActions, mockProfiles } from '@/mocks/data';
+import { mockSubscriptions, mockBills, mockScoutActions, mockProfiles, mockNegotiableBills } from '@/mocks/data';
+import { NegotiableBill } from '@/types';
+import { feedback } from '@/services/feedback';
 
 const subscriptionIcons: Record<string, React.ReactNode> = {
   'tv': <Tv size={18} color={Colors.textSecondary} />,
@@ -39,6 +45,7 @@ const billIcons: Record<string, React.ReactNode> = {
   'zap': <Zap size={18} color={Colors.textSecondary} />,
   'car': <Car size={18} color={Colors.textSecondary} />,
   'wifi': <Wifi size={18} color={Colors.textSecondary} />,
+  'smartphone': <Smartphone size={18} color={Colors.textSecondary} />,
 };
 
 type TabType = 'subscriptions' | 'bills' | 'profiles';
@@ -46,6 +53,13 @@ type TabType = 'subscriptions' | 'bills' | 'profiles';
 export default function ManageScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabType>('subscriptions');
+  const [showNegotiation, setShowNegotiation] = useState(false);
+  const [selectedBill, setSelectedBill] = useState<NegotiableBill | null>(null);
+
+  const totalPotentialSavings = mockNegotiableBills.reduce(
+    (sum, bill) => sum + bill.potentialSavings,
+    0
+  );
 
   const totalSubscriptions = mockSubscriptions.length;
   const totalSubscriptionCost = mockSubscriptions.reduce(
@@ -69,6 +83,134 @@ export default function ManageScreen() {
   const suggestions = mockScoutActions.filter(
     (a) => a.type === 'optimize' || a.type === 'review'
   ).slice(0, 2);
+
+  // Negotiation Detail View
+  if (selectedBill) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => setSelectedBill(null)}
+          >
+            <ChevronLeft size={20} color={Colors.primary} />
+            <Text style={styles.backButtonText}>Back to Negotiate</Text>
+          </TouchableOpacity>
+
+          <View style={styles.negotiateHeader}>
+            <Text style={styles.negotiateTitle}>{selectedBill.name}</Text>
+            <View style={styles.successBadge}>
+              <CheckCircle size={12} color={Colors.success} />
+              <Text style={styles.successBadgeText}>{selectedBill.successRate}% Success Rate</Text>
+            </View>
+          </View>
+
+          <View style={styles.savingsCard}>
+            <Text style={styles.savingsCardLabel}>Potential Monthly Savings</Text>
+            <Text style={styles.savingsCardAmount}>${selectedBill.potentialSavings}</Text>
+            <Text style={styles.savingsCardSublabel}>
+              ${selectedBill.potentialSavings * 12}/year
+            </Text>
+          </View>
+
+          <View style={styles.optionsContainer}>
+            <TouchableOpacity style={styles.optionPrimary}>
+              <MessageSquare size={20} color={Colors.white} />
+              <View style={styles.optionContent}>
+                <Text style={styles.optionPrimaryTitle}>We Negotiate For You</Text>
+                <Text style={styles.optionPrimaryDesc}>
+                  Scout handles the call. You save time.
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.optionSecondary}>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionSecondaryTitle}>Get DIY Script</Text>
+                <Text style={styles.optionSecondaryDesc}>
+                  We give you exactly what to say
+                </Text>
+              </View>
+              <ChevronRight size={18} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.diyTipCard}>
+            <Text style={styles.diyTipTitle}>Scout&apos;s DIY Tip</Text>
+            <Text style={styles.diyTipText}>{selectedBill.diyTip}</Text>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // Negotiation List View
+  if (showNegotiation) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => setShowNegotiation(false)}
+          >
+            <ChevronLeft size={20} color={Colors.primary} />
+            <Text style={styles.backButtonText}>Back to Manage</Text>
+          </TouchableOpacity>
+
+          <View style={styles.negotiateHeader}>
+            <Text style={styles.negotiateTitle}>Negotiate Bills</Text>
+            <Text style={styles.negotiateSubtitle}>
+              Transparent, optional, and effective
+            </Text>
+          </View>
+
+          <View style={styles.totalSavingsCard}>
+            <Text style={styles.totalSavingsLabel}>Total Potential Savings</Text>
+            <Text style={styles.totalSavingsAmount}>${totalPotentialSavings}/mo</Text>
+            <Text style={styles.totalSavingsSublabel}>
+              ${totalPotentialSavings * 12}/year across {mockNegotiableBills.length} bills
+            </Text>
+          </View>
+
+          <Text style={styles.sectionLabel}>Bills we can negotiate</Text>
+          <View style={styles.listContainer}>
+            {mockNegotiableBills.map((bill, index) => (
+              <TouchableOpacity
+                key={bill.id}
+                style={[
+                  styles.negotiateBillItem,
+                  index === mockNegotiableBills.length - 1 && styles.listItemLast,
+                ]}
+                onPress={() => setSelectedBill(bill)}
+              >
+                <View style={styles.listItemIcon}>
+                  {billIcons[bill.icon]}
+                </View>
+                <View style={styles.listItemContent}>
+                  <Text style={styles.listItemName}>{bill.name}</Text>
+                  <Text style={styles.listItemMeta}>
+                    {bill.successRate}% success rate
+                  </Text>
+                </View>
+                <View style={styles.savingsIndicator}>
+                  <Text style={styles.savingsText}>-${bill.potentialSavings}/mo</Text>
+                </View>
+                <ChevronRight size={18} color={Colors.textLight} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -268,6 +410,24 @@ export default function ManageScreen() {
             </TouchableOpacity>
           </View>
         )}
+
+        <TouchableOpacity
+          style={styles.negotiateButton}
+          onPress={() => {
+            feedback.onButtonPress();
+            setShowNegotiation(true);
+          }}
+        >
+          <View style={styles.negotiateButtonContent}>
+            <Text style={styles.negotiateButtonTitle}>Negotiate Bills</Text>
+            <Text style={styles.negotiateButtonSubtitle}>
+              Potential Savings: ${totalPotentialSavings}/mo Found
+            </Text>
+          </View>
+          <View style={styles.negotiateButtonIcon}>
+            <ChevronRight size={24} color={Colors.white} />
+          </View>
+        </TouchableOpacity>
 
         <View style={styles.suggestionsSection}>
           <View style={styles.suggestionHeader}>
@@ -517,5 +677,217 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600' as const,
     color: Colors.success,
+  },
+  // Negotiate Button Styles
+  negotiateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.primary,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  negotiateButtonContent: {
+    flex: 1,
+  },
+  negotiateButtonTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.white,
+    marginBottom: 4,
+  },
+  negotiateButtonSubtitle: {
+    fontSize: 12,
+    color: Colors.white,
+    opacity: 0.8,
+  },
+  negotiateButtonIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Back Button
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  backButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  // Negotiate Header
+  negotiateHeader: {
+    marginBottom: 24,
+  },
+  negotiateTitle: {
+    fontSize: 28,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  negotiateSubtitle: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+  },
+  // Total Savings Card
+  totalSavingsCard: {
+    backgroundColor: Colors.primary,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  totalSavingsLabel: {
+    fontSize: 12,
+    color: Colors.white,
+    opacity: 0.8,
+    marginBottom: 8,
+  },
+  totalSavingsAmount: {
+    fontSize: 40,
+    fontWeight: '700' as const,
+    color: Colors.white,
+  },
+  totalSavingsSublabel: {
+    fontSize: 13,
+    color: Colors.white,
+    opacity: 0.7,
+    marginTop: 4,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  negotiateBillItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  // Success Badge
+  successBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: `${Colors.success}15`,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  successBadgeText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.success,
+  },
+  // Savings Card (Detail View)
+  savingsCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: Colors.success,
+  },
+  savingsCardLabel: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginBottom: 8,
+  },
+  savingsCardAmount: {
+    fontSize: 48,
+    fontWeight: '700' as const,
+    color: Colors.success,
+  },
+  savingsCardSublabel: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  // Options Container
+  optionsContainer: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  optionPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    backgroundColor: Colors.primary,
+    borderRadius: 16,
+    padding: 20,
+  },
+  optionContent: {
+    flex: 1,
+  },
+  optionPrimaryTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.white,
+    marginBottom: 4,
+  },
+  optionPrimaryDesc: {
+    fontSize: 13,
+    color: Colors.white,
+    opacity: 0.8,
+  },
+  optionSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  optionSecondaryTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  optionSecondaryDesc: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  // DIY Tip Card
+  diyTipCard: {
+    backgroundColor: Colors.secondary,
+    borderRadius: 16,
+    padding: 20,
+  },
+  diyTipTitle: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.white,
+    opacity: 0.6,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  diyTipText: {
+    fontSize: 15,
+    color: Colors.white,
+    lineHeight: 22,
   },
 });

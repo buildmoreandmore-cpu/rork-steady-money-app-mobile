@@ -66,3 +66,38 @@ export interface Profile {
   type: 'personal' | 'partner' | 'family' | 'business';
   isActive: boolean;
 }
+
+export interface NegotiableBill {
+  id: string;
+  name: string;
+  currentAmount: number;
+  potentialSavings: number;
+  successRate: number;
+  icon: string;
+  diyTip: string;
+}
+
+export type MoneyGoal =
+  | 'spend_less'
+  | 'afford_check'
+  | 'stop_worrying'
+  | 'feel_control';
+
+export type TrackingMethod =
+  | 'link_accounts'
+  | 'manual'
+  | 'mix_both';
+
+export type ProfileType =
+  | 'just_me'
+  | 'partner'
+  | 'family'
+  | 'side_business'
+  | 'all';
+
+export interface OnboardingState {
+  completed: boolean;
+  moneyGoal: MoneyGoal | null;
+  trackingMethod: TrackingMethod | null;
+  profileType: ProfileType | null;
+}
