@@ -1,19 +1,50 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TrendingUp, ChevronRight, Clock, Target, Zap } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { TrendingUp, ChevronRight, Clock, Target, Zap, X, DollarSign, PiggyBank, TrendingDown } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
 import { mockTimeline } from '@/mocks/data';
+import { feedback } from '@/services/feedback';
 
 export default function JourneyScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const [showChangeModal, setShowChangeModal] = useState(false);
+
+  const handleWhatCouldChange = useCallback(() => {
+    feedback.onButtonPress();
+    setShowChangeModal(true);
+  }, []);
+
+  const scenarios = [
+    {
+      icon: <DollarSign size={20} color={Colors.success} />,
+      title: 'Increase income by $500/mo',
+      impact: '+$6,000/year',
+      newGoal: 'Reach $100k in 29 months',
+    },
+    {
+      icon: <PiggyBank size={20} color={Colors.primary} />,
+      title: 'Save an extra 10%',
+      impact: '+$3,600/year',
+      newGoal: 'Reach $100k in 32 months',
+    },
+    {
+      icon: <TrendingDown size={20} color={Colors.warning} />,
+      title: 'Cut subscriptions by $100/mo',
+      impact: '+$1,200/year',
+      newGoal: 'Reach $100k in 34 months',
+    },
+  ];
 
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-US', {
@@ -142,11 +173,68 @@ export default function JourneyScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.changeButton}>
+        <TouchableOpacity style={styles.changeButton} onPress={handleWhatCouldChange}>
           <Zap size={18} color={Colors.primary} />
           <Text style={styles.changeButtonText}>What could change this?</Text>
           <ChevronRight size={18} color={Colors.primary} />
         </TouchableOpacity>
+
+        {/* What Could Change Modal */}
+        <Modal
+          visible={showChangeModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowChangeModal(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>What could change your journey?</Text>
+              <TouchableOpacity
+                style={styles.modalClose}
+                onPress={() => setShowChangeModal(false)}
+              >
+                <X size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalContent}>
+              <Text style={styles.modalSubtitle}>
+                Here are some scenarios that could accelerate your progress:
+              </Text>
+
+              {scenarios.map((scenario, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.scenarioCard}
+                  onPress={() => {
+                    feedback.onButtonPress();
+                    setShowChangeModal(false);
+                    router.push('/(tabs)/decide');
+                  }}
+                >
+                  <View style={styles.scenarioIcon}>{scenario.icon}</View>
+                  <View style={styles.scenarioContent}>
+                    <Text style={styles.scenarioTitle}>{scenario.title}</Text>
+                    <Text style={styles.scenarioImpact}>{scenario.impact}</Text>
+                    <Text style={styles.scenarioGoal}>{scenario.newGoal}</Text>
+                  </View>
+                  <ChevronRight size={18} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              ))}
+
+              <TouchableOpacity
+                style={styles.exploreButton}
+                onPress={() => {
+                  feedback.onButtonPress();
+                  setShowChangeModal(false);
+                  router.push('/(tabs)/decide');
+                }}
+              >
+                <Text style={styles.exploreButtonText}>Try custom scenario</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </Modal>
 
         <View style={styles.insightsSection}>
           <Text style={styles.insightsTitle}>Journey insights</Text>
@@ -400,5 +488,91 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700' as const,
     color: Colors.text,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    flex: 1,
+  },
+  modalClose: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  modalSubtitle: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  scenarioCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+  },
+  scenarioIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.surfaceSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  scenarioContent: {
+    flex: 1,
+  },
+  scenarioTitle: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  scenarioImpact: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.success,
+    marginBottom: 2,
+  },
+  scenarioGoal: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  exploreButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 40,
+  },
+  exploreButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.white,
   },
 });

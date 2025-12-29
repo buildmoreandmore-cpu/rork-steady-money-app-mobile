@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -83,6 +84,82 @@ export default function ManageScreen() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  const handleNegotiateForMe = useCallback(() => {
+    feedback.onButtonPress();
+    Alert.alert(
+      'Coming Soon!',
+      'Scout will negotiate this bill for you. This feature is launching soon!',
+      [{ text: 'Notify Me', onPress: () => Alert.alert('Great!', 'We\'ll let you know when it\'s ready.') }]
+    );
+  }, []);
+
+  const handleGetDIYScript = useCallback(() => {
+    feedback.onButtonPress();
+    if (selectedBill) {
+      Alert.alert(
+        'DIY Negotiation Script',
+        `Here's what to say when you call:\n\n"Hi, I've been a loyal customer and I'm looking at my options. I noticed competitors are offering lower rates. Can you help me get a better deal on my ${selectedBill.name}?"\n\n${selectedBill.diyTip}`,
+        [{ text: 'Copy Script', onPress: () => Alert.alert('Copied!', 'Script copied to clipboard.') }, { text: 'Close' }]
+      );
+    }
+  }, [selectedBill]);
+
+  const handleSubscriptionPress = useCallback((subscription: typeof mockSubscriptions[0]) => {
+    feedback.onButtonPress();
+    Alert.alert(
+      subscription.name,
+      `${formatCurrency(subscription.amount)}/mo\nRenews: ${formatDate(subscription.renewalDate)}\n\nManage subscription?`,
+      [
+        { text: 'Cancel Sub', style: 'destructive' },
+        { text: 'Pause', onPress: () => Alert.alert('Paused', `${subscription.name} paused for 30 days.`) },
+        { text: 'Keep' }
+      ]
+    );
+  }, []);
+
+  const handleBillPress = useCallback((bill: typeof mockBills[0]) => {
+    feedback.onButtonPress();
+    Alert.alert(
+      bill.name,
+      `${formatCurrency(bill.amount)}/mo\nDue: ${formatDate(bill.dueDate)}\n\nBill options:`,
+      [
+        { text: 'Set Reminder' },
+        { text: 'Mark Paid', onPress: () => Alert.alert('Done!', `${bill.name} marked as paid.`) },
+        { text: 'Close' }
+      ]
+    );
+  }, []);
+
+  const handleProfilePress = useCallback((profile: typeof mockProfiles[0]) => {
+    feedback.onButtonPress();
+    Alert.alert(
+      profile.name,
+      `Balance: ${formatCurrency(profile.balance)}\n\nSwitch to this profile?`,
+      [
+        { text: 'Switch', onPress: () => Alert.alert('Switched', `Now viewing ${profile.name} profile.`) },
+        { text: 'Cancel' }
+      ]
+    );
+  }, []);
+
+  const handleAddProfile = useCallback(() => {
+    feedback.onButtonPress();
+    Alert.alert(
+      'Add Profile',
+      'Create a new profile for:',
+      [
+        { text: 'Partner', onPress: () => Alert.alert('Coming Soon', 'Partner profiles launching soon!') },
+        { text: 'Business', onPress: () => Alert.alert('Coming Soon', 'Business profiles launching soon!') },
+        { text: 'Cancel' }
+      ]
+    );
+  }, []);
+
+  const handleSuggestionPress = useCallback((suggestion: typeof mockScoutActions[0]) => {
+    feedback.onButtonPress();
+    router.push('/action-detail');
+  }, [router]);
+
   const suggestions = mockScoutActions.filter(
     (a) => a.type === 'optimize' || a.type === 'review'
   ).slice(0, 2);
@@ -121,7 +198,7 @@ export default function ManageScreen() {
           </View>
 
           <View style={styles.optionsContainer}>
-            <TouchableOpacity style={styles.optionPrimary}>
+            <TouchableOpacity style={styles.optionPrimary} onPress={handleNegotiateForMe}>
               <MessageSquare size={20} color={Colors.white} />
               <View style={styles.optionContent}>
                 <Text style={styles.optionPrimaryTitle}>We Negotiate For You</Text>
@@ -131,7 +208,7 @@ export default function ManageScreen() {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.optionSecondary}>
+            <TouchableOpacity style={styles.optionSecondary} onPress={handleGetDIYScript}>
               <View style={styles.optionContent}>
                 <Text style={styles.optionSecondaryTitle}>Get DIY Script</Text>
                 <Text style={styles.optionSecondaryDesc}>
@@ -299,6 +376,7 @@ export default function ManageScreen() {
                     styles.listItem,
                     index === mockSubscriptions.length - 1 && styles.listItemLast,
                   ]}
+                  onPress={() => handleSubscriptionPress(subscription)}
                 >
                   <View style={styles.listItemIcon}>
                     {subscriptionIcons[subscription.icon]}
@@ -355,6 +433,7 @@ export default function ManageScreen() {
                     styles.listItem,
                     index === mockBills.length - 1 && styles.listItemLast,
                   ]}
+                  onPress={() => handleBillPress(bill)}
                 >
                   <View style={styles.listItemIcon}>
                     {billIcons[bill.icon]}
@@ -389,6 +468,7 @@ export default function ManageScreen() {
                   styles.listItem,
                   index === mockProfiles.length - 1 && styles.listItemLast,
                 ]}
+                onPress={() => handleProfilePress(profile)}
               >
                 <View
                   style={[
@@ -414,7 +494,7 @@ export default function ManageScreen() {
                 <ChevronRight size={18} color={Colors.textLight} />
               </TouchableOpacity>
             ))}
-            <TouchableOpacity style={styles.addProfileButton}>
+            <TouchableOpacity style={styles.addProfileButton} onPress={handleAddProfile}>
               <Text style={styles.addProfileText}>+ Add profile</Text>
             </TouchableOpacity>
           </View>
@@ -445,7 +525,11 @@ export default function ManageScreen() {
           </View>
 
           {suggestions.map((suggestion) => (
-            <TouchableOpacity key={suggestion.id} style={styles.suggestionCard}>
+            <TouchableOpacity
+              key={suggestion.id}
+              style={styles.suggestionCard}
+              onPress={() => handleSuggestionPress(suggestion)}
+            >
               <Text style={styles.suggestionCardTitle}>{suggestion.title}</Text>
               <Text style={styles.suggestionCardDescription}>
                 {suggestion.description}

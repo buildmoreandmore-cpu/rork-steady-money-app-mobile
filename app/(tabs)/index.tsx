@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Animated,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -19,7 +20,9 @@ import {
   Briefcase,
   Fuel,
   Package,
+  Clock,
 } from 'lucide-react-native';
+import { feedback } from '@/services/feedback';
 
 import Colors from '@/constants/colors';
 import {
@@ -41,8 +44,38 @@ export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const scaleValue = React.useRef(new Animated.Value(1)).current;
+  const [reminderSet, setReminderSet] = useState(false);
 
   const currentAction = mockScoutActions[0];
+
+  const handleRemindLater = useCallback(() => {
+    feedback.onButtonPress();
+    setReminderSet(true);
+    Alert.alert(
+      'Reminder Set',
+      'We\'ll remind you about this tomorrow morning.',
+      [{ text: 'OK' }]
+    );
+  }, []);
+
+  const handleTransactionPress = useCallback((transaction: typeof mockTransactions[0]) => {
+    feedback.onButtonPress();
+    Alert.alert(
+      transaction.merchant,
+      `${transaction.category}\nAmount: $${transaction.amount.toFixed(2)}\n\nTransaction details coming soon!`,
+      [{ text: 'OK' }]
+    );
+  }, []);
+
+  const handleSeeAllTransactions = useCallback(() => {
+    feedback.onButtonPress();
+    // Navigate to full transaction list (for now show alert)
+    Alert.alert(
+      'All Transactions',
+      'Full transaction history coming soon!',
+      [{ text: 'OK' }]
+    );
+  }, []);
 
   const handleActionPress = useCallback(() => {
     Animated.sequence([
@@ -172,8 +205,14 @@ export default function TodayScreen() {
                 >
                   <Text style={styles.primaryButtonText}>Do it now</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.secondaryButton}>
-                  <Text style={styles.secondaryButtonText}>Remind me later</Text>
+                <TouchableOpacity
+                  style={[styles.secondaryButton, reminderSet && styles.secondaryButtonActive]}
+                  onPress={handleRemindLater}
+                >
+                  {reminderSet && <Clock size={14} color={Colors.primary} style={{ marginRight: 4 }} />}
+                  <Text style={[styles.secondaryButtonText, reminderSet && styles.secondaryButtonTextActive]}>
+                    {reminderSet ? 'Reminder set' : 'Remind me later'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -183,20 +222,22 @@ export default function TodayScreen() {
         <View style={styles.flowSection}>
           <View style={styles.flowHeader}>
             <Text style={styles.flowTitle}>Recent Flow</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={handleSeeAllTransactions}>
               <Text style={styles.seeAllText}>See all</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.transactionList}>
             {mockTransactions.slice(0, 5).map((transaction, index) => (
-              <View
+              <TouchableOpacity
                 key={transaction.id}
                 style={[
                   styles.transactionItem,
                   index === mockTransactions.slice(0, 5).length - 1 &&
                     styles.lastTransactionItem,
                 ]}
+                onPress={() => handleTransactionPress(transaction)}
+                activeOpacity={0.7}
               >
                 <View style={styles.transactionIcon}>
                   {iconMap[transaction.icon]}
@@ -222,7 +263,7 @@ export default function TodayScreen() {
                 >
                   {formatTransactionAmount(transaction.amount, transaction.type)}
                 </Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         </View>
@@ -386,15 +427,23 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     flex: 1,
+    flexDirection: 'row',
     backgroundColor: Colors.surfaceSecondary,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonActive: {
+    backgroundColor: `${Colors.primary}15`,
   },
   secondaryButtonText: {
     color: Colors.textSecondary,
     fontSize: 15,
     fontWeight: '600' as const,
+  },
+  secondaryButtonTextActive: {
+    color: Colors.primary,
   },
   flowSection: {
     marginBottom: 20,

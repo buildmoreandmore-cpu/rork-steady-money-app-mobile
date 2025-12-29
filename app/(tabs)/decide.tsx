@@ -6,9 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   GestureResponderEvent,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowRight, Calendar, DollarSign, Target } from 'lucide-react-native';
+import { ArrowRight, Calendar, DollarSign, Target, Check } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
 import { feedback } from '@/services/feedback';
@@ -116,6 +117,31 @@ export default function DecideScreen() {
   }, [fixed, strategic, lifestyle]);
 
   const projections = calculateProjections();
+  const [planSaved, setPlanSaved] = useState(false);
+
+  const handleSavePlan = useCallback(() => {
+    feedback.onDecisionConfirmed();
+    setPlanSaved(true);
+    Alert.alert(
+      'Plan Saved! 🎉',
+      `Your budget plan has been saved:\n\n• Fixed: ${projections.fixedPercent}%\n• Strategic: ${projections.strategicPercent}%\n• Lifestyle: ${projections.lifestylePercent}%\n\nScout will help you stay on track!`,
+      [{ text: 'Great!' }]
+    );
+  }, [projections]);
+
+  const handleTryAnother = useCallback(() => {
+    feedback.onButtonPress();
+    // Reset to default values
+    setFixed(0.5);
+    setStrategic(0.3);
+    setLifestyle(0.2);
+    setPlanSaved(false);
+    Alert.alert(
+      'Reset to Default',
+      'Sliders reset to the recommended 50/30/20 split. Try adjusting to see different outcomes!',
+      [{ text: 'OK' }]
+    );
+  }, []);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -202,15 +228,18 @@ export default function DecideScreen() {
 
         <View style={styles.actionsSection}>
           <TouchableOpacity
-            style={styles.primaryActionButton}
-            onPress={() => feedback.onDecisionConfirmed()}
+            style={[styles.primaryActionButton, planSaved && styles.primaryActionButtonSaved]}
+            onPress={handleSavePlan}
           >
-            <Text style={styles.primaryActionText}>Save this plan</Text>
+            {planSaved && <Check size={18} color={Colors.white} style={{ marginRight: 6 }} />}
+            <Text style={styles.primaryActionText}>
+              {planSaved ? 'Plan saved!' : 'Save this plan'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.secondaryActionButton}
-            onPress={() => feedback.onButtonPress()}
+            onPress={handleTryAnother}
           >
             <Text style={styles.secondaryActionText}>Try another scenario</Text>
           </TouchableOpacity>
@@ -358,10 +387,15 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   primaryActionButton: {
+    flexDirection: 'row',
     backgroundColor: Colors.primary,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryActionButtonSaved: {
+    backgroundColor: Colors.success,
   },
   primaryActionText: {
     color: Colors.white,
