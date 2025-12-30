@@ -194,7 +194,13 @@ export default function OnboardingScreen() {
         trackingMethod,
         profileType,
       }));
-      router.replace('/(tabs)');
+
+      // If user wants to link accounts, navigate to link-account screen
+      if (trackingMethod === 'link_accounts' || trackingMethod === 'mix_both') {
+        router.replace('/link-account');
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (error) {
       console.error('Error saving onboarding state:', error);
       router.replace('/(tabs)');
