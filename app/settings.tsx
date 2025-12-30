@@ -11,7 +11,6 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Shield,
@@ -27,6 +26,12 @@ import {
 
 import Colors from '@/constants/colors';
 
+let LocalAuthentication: any = null;
+if (Platform.OS !== 'web') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  LocalAuthentication = require('expo-local-authentication');
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const [biometricEnabled, setBiometricEnabled] = useState(false);
@@ -38,6 +43,11 @@ export default function SettingsScreen() {
   }, []);
 
   const checkBiometricStatus = async () => {
+    if (Platform.OS === 'web' || !LocalAuthentication) {
+      setBiometricAvailable(false);
+      return;
+    }
+
     // Check if device supports biometrics
     const compatible = await LocalAuthentication.hasHardwareAsync();
     const enrolled = await LocalAuthentication.isEnrolledAsync();
@@ -58,6 +68,10 @@ export default function SettingsScreen() {
   };
 
   const toggleBiometric = async (value: boolean) => {
+    if (Platform.OS === 'web' || !LocalAuthentication) {
+      return;
+    }
+
     if (value) {
       // Verify biometric before enabling
       const result = await LocalAuthentication.authenticateAsync({

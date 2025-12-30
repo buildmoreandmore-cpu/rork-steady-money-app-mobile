@@ -4,15 +4,19 @@ import {
   Text,
   View,
   TouchableOpacity,
-  Image,
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as LocalAuthentication from 'expo-local-authentication';
 import { Shield, Fingerprint, Scan } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Colors from '@/constants/colors';
+
+let LocalAuthentication: any = null;
+if (Platform.OS !== 'web') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  LocalAuthentication = require('expo-local-authentication');
+}
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -22,9 +26,17 @@ export default function AuthScreen() {
 
   useEffect(() => {
     checkBiometricSupport();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkBiometricSupport = async () => {
+    if (Platform.OS === 'web' || !LocalAuthentication) {
+      // On web, skip biometric auth
+      await AsyncStorage.setItem('authenticated', 'true');
+      router.replace('/(tabs)');
+      return;
+    }
+
     const compatible = await LocalAuthentication.hasHardwareAsync();
     const enrolled = await LocalAuthentication.isEnrolledAsync();
 
@@ -41,6 +53,12 @@ export default function AuthScreen() {
   };
 
   const authenticate = async () => {
+    if (Platform.OS === 'web' || !LocalAuthentication) {
+      await AsyncStorage.setItem('authenticated', 'true');
+      router.replace('/(tabs)');
+      return;
+    }
+
     setIsAuthenticating(true);
     setError(null);
 
@@ -62,7 +80,7 @@ export default function AuthScreen() {
           setError('Authentication failed. Please try again.');
         }
       }
-    } catch (err) {
+    } catch {
       setError('An error occurred. Please try again.');
     } finally {
       setIsAuthenticating(false);
