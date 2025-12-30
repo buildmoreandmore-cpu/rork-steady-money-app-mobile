@@ -11,10 +11,23 @@ import Colors from "@/constants/colors";
 import { supabase } from "@/services/supabase";
 
 let SplashScreen: any = null;
+let isSplashLoaded = false;
+
+const loadSplashScreen = async () => {
+  if (Platform.OS === 'web' || isSplashLoaded) return;
+  
+  try {
+    SplashScreen = await import('expo-splash-screen');
+    await SplashScreen.preventAutoHideAsync();
+    isSplashLoaded = true;
+  } catch (e) {
+    console.log('Splash screen not available:', e);
+    isSplashLoaded = true;
+  }
+};
+
 if (Platform.OS !== 'web') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  SplashScreen = require('expo-splash-screen');
-  SplashScreen.preventAutoHideAsync();
+  loadSplashScreen();
 }
 
 const queryClient = new QueryClient();
@@ -150,9 +163,22 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   useEffect(() => {
-    if (Platform.OS !== 'web' && SplashScreen) {
-      SplashScreen.hideAsync();
-    }
+    const hideSplash = async () => {
+      if (Platform.OS === 'web') return;
+      
+      try {
+        if (!isSplashLoaded) {
+          await loadSplashScreen();
+        }
+        if (SplashScreen?.hideAsync) {
+          await SplashScreen.hideAsync();
+        }
+      } catch (e) {
+        console.log('Error hiding splash:', e);
+      }
+    };
+    
+    hideSplash();
   }, []);
 
   return (

@@ -13,10 +13,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Colors from '@/constants/colors';
 
 let LocalAuthentication: any = null;
-if (Platform.OS !== 'web') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  LocalAuthentication = require('expo-local-authentication');
-}
+let isChecked = false;
+
+const getLocalAuth = async () => {
+  if (Platform.OS === 'web') return null;
+  if (isChecked) return LocalAuthentication;
+  
+  try {
+    LocalAuthentication = await import('expo-local-authentication');
+    isChecked = true;
+    return LocalAuthentication;
+  } catch (e) {
+    console.log('Local authentication not available:', e);
+    isChecked = true;
+    return null;
+  }
+};
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -30,30 +42,45 @@ export default function AuthScreen() {
   }, []);
 
   const checkBiometricSupport = async () => {
-    if (Platform.OS === 'web' || !LocalAuthentication) {
-      // On web, skip biometric auth
+    if (Platform.OS === 'web') {
       await AsyncStorage.setItem('authenticated', 'true');
       router.replace('/(tabs)');
       return;
     }
 
-    const compatible = await LocalAuthentication.hasHardwareAsync();
-    const enrolled = await LocalAuthentication.isEnrolledAsync();
+    const auth = await getLocalAuth();
+    if (!auth) {
+      await AsyncStorage.setItem('authenticated', 'true');
+      router.replace('/(tabs)');
+      return;
+    }
+
+    const compatible = await auth.hasHardwareAsync();
+    const enrolled = await auth.isEnrolledAsync();
 
     if (compatible && enrolled) {
-      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
-      if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+      const types = await auth.supportedAuthenticationTypesAsync();
+      if (types.includes(auth.AuthenticationType.FACIAL_RECOGNITION)) {
         setBiometricType('face');
-      } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+      } else if (types.includes(auth.AuthenticationType.FINGERPRINT)) {
         setBiometricType('fingerprint');
       }
-      // Auto-prompt on mount
       authenticate();
+    } else {
+      await AsyncStorage.setItem('authenticated', 'true');
+      router.replace('/(tabs)');
     }
   };
 
   const authenticate = async () => {
-    if (Platform.OS === 'web' || !LocalAuthentication) {
+    if (Platform.OS === 'web') {
+      await AsyncStorage.setItem('authenticated', 'true');
+      router.replace('/(tabs)');
+      return;
+    }
+
+    const auth = await getLocalAuth();
+    if (!auth) {
       await AsyncStorage.setItem('authenticated', 'true');
       router.replace('/(tabs)');
       return;
@@ -63,7 +90,7 @@ export default function AuthScreen() {
     setError(null);
 
     try {
-      const result = await LocalAuthentication.authenticateAsync({
+      const result = await auth.authenticateAsync({
         promptMessage: 'Authenticate to access Steady',
         fallbackLabel: 'Use passcode',
         cancelLabel: 'Cancel',
