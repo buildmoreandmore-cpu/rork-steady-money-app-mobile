@@ -11,17 +11,49 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Link, Building2, CheckCircle, ArrowLeft, AlertCircle } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  LinkSuccess,
-  LinkExit,
-  create,
-  open,
-  usePlaidEmitter,
-} from 'react-native-plaid-link-sdk';
 
 import Colors from '@/constants/colors';
 import { feedback } from '@/services/feedback';
 import { createLinkToken, exchangePublicToken, getLinkedAccounts } from '@/services/plaid';
+
+// Plaid SDK types (for type safety when module is available)
+type PlaidLinkSuccess = {
+  publicToken: string;
+  metadata: {
+    institution?: {
+      id: string;
+      name: string;
+    };
+  };
+};
+
+type PlaidLinkExit = {
+  error?: {
+    displayMessage?: string;
+  };
+};
+
+// Dynamic Plaid module reference
+let PlaidModule: any = null;
+let isPlaidChecked = false;
+let isPlaidAvailable = false;
+
+const checkPlaidAvailable = async (): Promise<boolean> => {
+  if (isPlaidChecked) {
+    return isPlaidAvailable;
+  }
+
+  try {
+    PlaidModule = await import('react-native-plaid-link-sdk');
+    isPlaidAvailable = true;
+  } catch (e) {
+    console.log('Plaid SDK not available (expected in Expo Go/Rork):', e);
+    isPlaidAvailable = false;
+  }
+
+  isPlaidChecked = true;
+  return isPlaidAvailable;
+};
 
 export default function LinkAccountScreen() {
   const insets = useSafeAreaInsets();
@@ -30,11 +62,6 @@ export default function LinkAccountScreen() {
   const [isLinked, setIsLinked] = useState(false);
   const [linkedAccountsCount, setLinkedAccountsCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
-  // Set up Plaid event listeners
-  usePlaidEmitter((event) => {
-    console.log('Plaid Event:', event);
-  });
 
   useEffect(() => {
     checkExistingAccounts();
@@ -52,7 +79,7 @@ export default function LinkAccountScreen() {
     }
   };
 
-  const handleSuccess = useCallback(async (success: LinkSuccess) => {
+  const handleSuccess = useCallback(async (success: PlaidLinkSuccess) => {
     console.log('Plaid Link Success:', success);
     feedback.onDecisionConfirmed();
     setIsLoading(true);
@@ -92,7 +119,7 @@ export default function LinkAccountScreen() {
     }
   }, [router]);
 
-  const handleExit = useCallback((exit: LinkExit) => {
+  const handleExit = useCallback((exit: PlaidLinkExit) => {
     console.log('Plaid Link Exit:', exit);
     setIsLoading(false);
 
@@ -106,6 +133,19 @@ export default function LinkAccountScreen() {
     setIsLoading(true);
     setError(null);
 
+    // Check if Plaid SDK is available
+    const plaidAvailable = await checkPlaidAvailable();
+
+    if (!plaidAvailable) {
+      setIsLoading(false);
+      Alert.alert(
+        'Development Build Required',
+        'Bank account linking requires a custom development build with native modules. The core app features work without it.\n\nTo enable bank linking, create a development build using EAS Build.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     try {
       // Get link token from backend
       const linkToken = await createLinkToken();
@@ -115,10 +155,10 @@ export default function LinkAccountScreen() {
       }
 
       // Create Plaid Link with token
-      create({ token: linkToken });
+      PlaidModule.create({ token: linkToken });
 
       // Open Plaid Link with callbacks
-      open({
+      PlaidModule.open({
         onSuccess: handleSuccess,
         onExit: handleExit,
       });

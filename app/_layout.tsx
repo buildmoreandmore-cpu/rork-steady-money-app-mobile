@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { AppState, AppStateStatus } from "react-native";
@@ -18,6 +18,7 @@ const queryClient = new QueryClient();
 function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
+  const isMounted = useRef(false);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState<boolean | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -25,14 +26,18 @@ function RootLayoutNav() {
   const [biometricVerified, setBiometricVerified] = useState<boolean>(false);
 
   useEffect(() => {
+    isMounted.current = true;
     checkAppStatus();
 
     // Listen for Supabase auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+      if (isMounted.current) {
+        setSession(session);
+      }
     });
 
     return () => {
+      isMounted.current = false;
       subscription.unsubscribe();
     };
   }, []);
@@ -54,14 +59,17 @@ function RootLayoutNav() {
     try {
       // Check onboarding status
       const completed = await AsyncStorage.getItem('onboarding_completed');
+      if (!isMounted.current) return;
       setIsOnboardingComplete(completed === 'true');
 
       // Check biometric settings
       const bioEnabled = await AsyncStorage.getItem('biometric_enabled');
+      if (!isMounted.current) return;
       setBiometricEnabled(bioEnabled === 'true');
 
       // Check Supabase session
       const { data: { session } } = await supabase.auth.getSession();
+      if (!isMounted.current) return;
       setSession(session);
 
       // If biometric not enabled, consider verified
@@ -70,9 +78,13 @@ function RootLayoutNav() {
       }
     } catch (error) {
       console.error('Error checking app status:', error);
-      setIsOnboardingComplete(false);
+      if (isMounted.current) {
+        setIsOnboardingComplete(false);
+      }
     } finally {
-      setIsLoading(false);
+      if (isMounted.current) {
+        setIsLoading(false);
+      }
     }
   };
 
