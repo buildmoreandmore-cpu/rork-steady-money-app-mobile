@@ -69,12 +69,12 @@ export default function SignUpScreen() {
           [
             {
               text: 'OK',
-              onPress: () => router.replace('/login'),
+              onPress: () => router.replace('/login' as any),
             },
           ]
         );
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setIsLoading(false);

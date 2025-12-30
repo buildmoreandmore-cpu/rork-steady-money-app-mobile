@@ -84,28 +84,22 @@ function RootLayoutNav() {
   useEffect(() => {
     if (isLoading || isOnboardingComplete === null) return;
 
-    const inOnboarding = segments[0] === 'onboarding';
-    const inLogin = segments[0] === 'login';
-    const inSignup = segments[0] === 'signup';
-    const inAuth = segments[0] === 'auth';
-    const inLinkAccount = segments[0] === 'link-account';
-    const inTabs = segments[0] === '(tabs)';
+    const inOnboarding = (segments[0] as any) === 'onboarding';
+    const inLogin = (segments[0] as any) === 'login';
+    const inSignup = (segments[0] as any) === 'signup';
+    const inAuth = (segments[0] as any) === 'auth';
     const isAuthScreen = inLogin || inSignup;
 
     if (!isOnboardingComplete && !inOnboarding) {
-      // Not onboarded - go to onboarding
-      router.replace('/onboarding');
+      router.replace('/onboarding' as any);
     } else if (isOnboardingComplete && !session && !isAuthScreen && !inOnboarding) {
-      // Onboarded but not logged in - go to login
-      router.replace('/login');
+      router.replace('/login' as any);
     } else if (session && biometricEnabled && !biometricVerified && !inAuth) {
-      // Logged in but needs biometric verification
-      router.replace('/auth');
+      router.replace('/auth' as any);
     } else if (session && (!biometricEnabled || biometricVerified) && (isAuthScreen || inOnboarding || inAuth)) {
-      // Fully authenticated - go to main app
       router.replace('/(tabs)');
     }
-  }, [isOnboardingComplete, session, biometricEnabled, biometricVerified, isLoading, segments]);
+  }, [isOnboardingComplete, session, biometricEnabled, biometricVerified, isLoading, segments, router]);
 
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>

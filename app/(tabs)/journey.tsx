@@ -209,7 +209,7 @@ export default function JourneyScreen() {
                   onPress={() => {
                     feedback.onButtonPress();
                     setShowChangeModal(false);
-                    router.push('/(tabs)/decide');
+                    router.push('/(tabs)/decide' as any);
                   }}
                 >
                   <View style={styles.scenarioIcon}>{scenario.icon}</View>
@@ -227,7 +227,7 @@ export default function JourneyScreen() {
                 onPress={() => {
                   feedback.onButtonPress();
                   setShowChangeModal(false);
-                  router.push('/(tabs)/decide');
+                  router.push('/(tabs)/decide' as any);
                 }}
               >
                 <Text style={styles.exploreButtonText}>Try custom scenario</Text>

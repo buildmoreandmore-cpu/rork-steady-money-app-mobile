@@ -5,7 +5,6 @@ import {
   View,
   TouchableOpacity,
   SafeAreaView,
-  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -32,7 +31,7 @@ import Colors from '@/constants/colors';
 import { MoneyGoal, TrackingMethod, ProfileType } from '@/types';
 import { feedback } from '@/services/feedback';
 
-const { width } = Dimensions.get('window');
+
 
 interface OptionItem {
   id: string;
@@ -202,10 +201,10 @@ export default function OnboardingScreen() {
         await AsyncStorage.setItem('should_link_accounts', 'true');
       }
 
-      router.replace('/login');
+      router.replace('/login' as any);
     } catch (error) {
       console.error('Error saving onboarding state:', error);
-      router.replace('/login');
+      router.replace('/login' as any);
     }
   }, [moneyGoal, trackingMethod, profileType, router]);
 

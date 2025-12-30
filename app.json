@@ -18,7 +18,11 @@
       "bundleIdentifier": "app.steadymoney.mobile",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Steady uses Face ID to secure your financial data",
-        "NSCameraUsageDescription": "Steady uses the camera to scan documents"
+        "NSCameraUsageDescription": "Steady uses the camera to scan documents",
+        "UIBackgroundModes": [
+          "audio"
+        ],
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone"
       }
     },
     "android": {
@@ -26,7 +30,13 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.steadymoney.mobile"
+      "package": "app.steadymoney.mobile",
+      "permissions": [
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "android.permission.VIBRATE",
+        "RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -40,11 +50,22 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-local-authentication",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow $(PRODUCT_NAME) to use Face ID."
+        }
+      ],
       [
         "react-native-plaid-link-sdk",
         {
           "oauth": true
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone"
         }
       ]
     ],

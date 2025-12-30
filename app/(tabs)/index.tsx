@@ -90,7 +90,7 @@ export default function TodayScreen() {
         useNativeDriver: true,
       }),
     ]).start(() => {
-      router.push('/action-detail');
+      router.push('/action-detail' as any);
     });
   }, [router, scaleValue]);
 

@@ -157,7 +157,7 @@ export default function ManageScreen() {
 
   const handleSuggestionPress = useCallback((suggestion: typeof mockScoutActions[0]) => {
     feedback.onButtonPress();
-    router.push('/action-detail');
+    router.push('/action-detail' as any);
   }, [router]);
 
   const suggestions = mockScoutActions.filter(
@@ -303,7 +303,7 @@ export default function ManageScreen() {
           <Text style={styles.title}>Control Center</Text>
           <TouchableOpacity
             style={styles.settingsButton}
-            onPress={() => router.push('/settings')}
+            onPress={() => router.push('/settings' as any)}
           >
             <Settings size={22} color={Colors.textSecondary} />
           </TouchableOpacity>

@@ -51,12 +51,12 @@ export default function LoginScreen() {
         const shouldLink = await AsyncStorage.getItem('should_link_accounts');
         if (shouldLink === 'true') {
           await AsyncStorage.removeItem('should_link_accounts');
-          router.replace('/link-account');
+          router.replace('/link-account' as any);
         } else {
           router.replace('/(tabs)');
         }
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setIsLoading(false);
@@ -65,7 +65,7 @@ export default function LoginScreen() {
 
   const handleSignUp = useCallback(() => {
     feedback.onButtonPress();
-    router.push('/signup');
+    router.push('/signup' as any);
   }, [router]);
 
   const handleForgotPassword = useCallback(async () => {
@@ -87,7 +87,7 @@ export default function LoginScreen() {
       } else {
         Alert.alert('Check Your Email', 'We sent you a password reset link');
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setIsLoading(false);
@@ -170,7 +170,7 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account?</Text>
+          <Text style={styles.footerText}>Don&apos;t have an account?</Text>
           <TouchableOpacity onPress={handleSignUp}>
             <Text style={styles.footerLink}>Sign Up</Text>
           </TouchableOpacity>
