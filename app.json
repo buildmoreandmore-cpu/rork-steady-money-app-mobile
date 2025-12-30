@@ -57,12 +57,6 @@
         }
       ],
       [
-        "react-native-plaid-link-sdk",
-        {
-          "oauth": true
-        }
-      ],
-      [
         "expo-av",
         {
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone"
