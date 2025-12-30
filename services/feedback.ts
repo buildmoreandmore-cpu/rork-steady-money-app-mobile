@@ -9,8 +9,13 @@
  */
 
 import * as Haptics from 'expo-haptics';
-import { Audio } from 'expo-av';
 import { Platform } from 'react-native';
+
+let Audio: any = null;
+if (Platform.OS !== 'web') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Audio = require('expo-av').Audio;
+}
 
 export type FeedbackType =
   | 'decision_confirmed'    // Satisfying click + medium tap
@@ -84,7 +89,7 @@ const feedbackConfigs: Record<FeedbackType, FeedbackConfig> = {
  */
 
 class FeedbackService {
-  private soundObjects: Map<string, Audio.Sound> = new Map();
+  private soundObjects: Map<string, any> = new Map();
   private isInitialized = false;
   private isMuted = false;
 
@@ -95,11 +100,13 @@ class FeedbackService {
     if (this.isInitialized) return;
 
     try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: false, // Respect silent mode
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-      });
+      if (Platform.OS !== 'web' && Audio) {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: false, // Respect silent mode
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+        });
+      }
 
       // Note: In production, you would load actual sound files here
       // For now, we'll use haptics only and log sound intentions
@@ -142,7 +149,7 @@ class FeedbackService {
       } else {
         await Haptics.notificationAsync(style as Haptics.NotificationFeedbackType);
       }
-    } catch (error) {
+    } catch {
       // Haptics may not be available on all devices
       console.debug('Haptic feedback not available');
     }
