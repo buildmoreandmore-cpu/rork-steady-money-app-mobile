@@ -183,9 +183,9 @@ export const mockTimeline: TimelinePoint[] = [
 ];
 
 export const mockProfiles: Profile[] = [
-  { id: '1', name: 'Personal', type: 'personal', isActive: true },
-  { id: '2', name: 'Side Business', type: 'business', isActive: false },
-  { id: '3', name: 'Family', type: 'family', isActive: false },
+  { id: '1', name: 'Personal', type: 'personal', isActive: true, balance: 47250 },
+  { id: '2', name: 'Side Business', type: 'business', isActive: false, balance: 12400 },
+  { id: '3', name: 'Family', type: 'family', isActive: false, balance: 8950 },
 ];
 
 export const mockNegotiableBills: NegotiableBill[] = [

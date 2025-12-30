@@ -108,7 +108,7 @@ export default function ManageScreen() {
     feedback.onButtonPress();
     Alert.alert(
       subscription.name,
-      `${formatCurrency(subscription.amount)}/mo\nRenews: ${formatDate(subscription.renewalDate)}\n\nManage subscription?`,
+      `${formatCurrency(subscription.amount)}/mo\nRenews: ${formatDate(subscription.nextBilling)}\n\nManage subscription?`,
       [
         { text: 'Cancel Sub', style: 'destructive' },
         { text: 'Pause', onPress: () => Alert.alert('Paused', `${subscription.name} paused for 30 days.`) },

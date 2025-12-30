@@ -65,6 +65,7 @@ export interface Profile {
   name: string;
   type: 'personal' | 'partner' | 'family' | 'business';
   isActive: boolean;
+  balance: number;
 }
 
 export interface NegotiableBill {
