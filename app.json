@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "rork-app",
+    "scheme": "steadymoney",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,14 +15,18 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.steady-money-app"
+      "bundleIdentifier": "app.steadymoney.mobile",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Steady uses Face ID to secure your financial data",
+        "NSCameraUsageDescription": "Steady uses the camera to scan documents"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.steady_money_app"
+      "package": "app.steadymoney.mobile"
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -31,11 +35,18 @@
       [
         "expo-router",
         {
-          "origin": "https://rork.com/"
+          "origin": "https://steadymoney.app/"
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-local-authentication",
+      [
+        "react-native-plaid-link-sdk",
+        {
+          "oauth": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -6,8 +6,10 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { AppState, AppStateStatus } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Session } from "@supabase/supabase-js";
 
 import Colors from "@/constants/colors";
+import { supabase } from "@/services/supabase";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -17,82 +19,101 @@ function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
   const [isOnboardingComplete, setIsOnboardingComplete] = useState<boolean | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [biometricEnabled, setBiometricEnabled] = useState<boolean>(false);
+  const [biometricVerified, setBiometricVerified] = useState<boolean>(false);
 
   useEffect(() => {
     checkAppStatus();
+
+    // Listen for Supabase auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  // Re-authenticate when app comes to foreground (only if biometric is enabled)
+  // Re-authenticate with biometric when app comes to foreground
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'active' && isOnboardingComplete && biometricEnabled) {
-        checkAuthStatus();
+      if (nextAppState === 'active' && session && biometricEnabled) {
+        setBiometricVerified(false);
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, [isOnboardingComplete, biometricEnabled]);
+  }, [session, biometricEnabled]);
 
   const checkAppStatus = async () => {
     try {
+      // Check onboarding status
       const completed = await AsyncStorage.getItem('onboarding_completed');
-      const authenticated = await AsyncStorage.getItem('authenticated');
-      const bioEnabled = await AsyncStorage.getItem('biometric_enabled');
-
       setIsOnboardingComplete(completed === 'true');
+
+      // Check biometric settings
+      const bioEnabled = await AsyncStorage.getItem('biometric_enabled');
       setBiometricEnabled(bioEnabled === 'true');
 
-      // If biometric is not enabled, consider user authenticated
+      // Check Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+
+      // If biometric not enabled, consider verified
       if (bioEnabled !== 'true') {
-        setIsAuthenticated(true);
-      } else {
-        setIsAuthenticated(authenticated === 'true');
+        setBiometricVerified(true);
       }
     } catch (error) {
       console.error('Error checking app status:', error);
       setIsOnboardingComplete(false);
-      setIsAuthenticated(true); // Default to authenticated if error
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const checkAuthStatus = async () => {
-    // Clear auth status to require re-authentication
-    await AsyncStorage.removeItem('authenticated');
-    setIsAuthenticated(false);
-  };
-
-  // Re-check status when segments change (e.g., after completing onboarding)
+  // Re-check status when segments change
   useEffect(() => {
     checkAppStatus();
   }, [segments]);
 
   useEffect(() => {
-    if (isOnboardingComplete === null || isAuthenticated === null) return;
+    if (isLoading || isOnboardingComplete === null) return;
 
     const inOnboarding = segments[0] === 'onboarding';
+    const inLogin = segments[0] === 'login';
+    const inSignup = segments[0] === 'signup';
     const inAuth = segments[0] === 'auth';
+    const inLinkAccount = segments[0] === 'link-account';
     const inTabs = segments[0] === '(tabs)';
+    const isAuthScreen = inLogin || inSignup;
 
     if (!isOnboardingComplete && !inOnboarding) {
       // Not onboarded - go to onboarding
       router.replace('/onboarding');
-    } else if (isOnboardingComplete && biometricEnabled && !isAuthenticated && !inAuth && !inTabs) {
-      // Onboarded, biometric enabled, but not authenticated - go to auth
+    } else if (isOnboardingComplete && !session && !isAuthScreen && !inOnboarding) {
+      // Onboarded but not logged in - go to login
+      router.replace('/login');
+    } else if (session && biometricEnabled && !biometricVerified && !inAuth) {
+      // Logged in but needs biometric verification
       router.replace('/auth');
-    } else if (isOnboardingComplete && isAuthenticated && (inOnboarding || inAuth)) {
+    } else if (session && (!biometricEnabled || biometricVerified) && (isAuthScreen || inOnboarding || inAuth)) {
       // Fully authenticated - go to main app
       router.replace('/(tabs)');
     }
-  }, [isOnboardingComplete, isAuthenticated, biometricEnabled, segments]);
+  }, [isOnboardingComplete, session, biometricEnabled, biometricVerified, isLoading, segments]);
 
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="signup" options={{ headerShown: false }} />
       <Stack.Screen name="auth" options={{ headerShown: false }} />
+      <Stack.Screen name="link-account" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="action-detail"

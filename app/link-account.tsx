@@ -9,55 +9,125 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Link, Building2, CheckCircle, ArrowLeft } from 'lucide-react-native';
+import { Link, Building2, CheckCircle, ArrowLeft, AlertCircle } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  LinkSuccess,
+  LinkExit,
+  create,
+  open,
+  usePlaidEmitter,
+} from 'react-native-plaid-link-sdk';
 
 import Colors from '@/constants/colors';
 import { feedback } from '@/services/feedback';
-
-// Note: In production, you would use react-native-plaid-link-sdk
-// For now, we'll create a placeholder that simulates the flow
+import { createLinkToken, exchangePublicToken, getLinkedAccounts } from '@/services/plaid';
 
 export default function LinkAccountScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isLinked, setIsLinked] = useState(false);
+  const [linkedAccountsCount, setLinkedAccountsCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLinkAccount = useCallback(async () => {
-    feedback.onButtonPress();
+  // Set up Plaid event listeners
+  usePlaidEmitter((event) => {
+    console.log('Plaid Event:', event);
+  });
+
+  useEffect(() => {
+    checkExistingAccounts();
+  }, []);
+
+  const checkExistingAccounts = async () => {
+    try {
+      const accounts = await getLinkedAccounts();
+      if (accounts && accounts.length > 0) {
+        setLinkedAccountsCount(accounts.length);
+        setIsLinked(true);
+      }
+    } catch (err) {
+      // No accounts linked yet, that's fine
+    }
+  };
+
+  const handleSuccess = useCallback(async (success: LinkSuccess) => {
+    console.log('Plaid Link Success:', success);
+    feedback.onDecisionConfirmed();
     setIsLoading(true);
 
     try {
-      // Simulate Plaid Link flow
-      // In production, this would:
-      // 1. Call plaid-create-link-token to get a link token
-      // 2. Open Plaid Link SDK with the token
-      // 3. On success, call plaid-exchange-token with the public token
-
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Exchange public token for access token
+      await exchangePublicToken(
+        success.publicToken,
+        success.metadata.institution?.id || '',
+        success.metadata.institution?.name || ''
+      );
 
       // Mark as linked
       await AsyncStorage.setItem('accounts_linked', 'true');
       setIsLinked(true);
-      feedback.onDecisionConfirmed();
+      setLinkedAccountsCount(prev => prev + 1);
 
       Alert.alert(
         'Account Linked!',
-        'Your bank account has been successfully connected. Your transactions will sync shortly.',
+        `Your ${success.metadata.institution?.name || 'bank'} account has been successfully connected. Your transactions will sync shortly.`,
         [
+          {
+            text: 'Link Another',
+            onPress: () => setIsLoading(false),
+          },
           {
             text: 'Continue',
             onPress: () => router.replace('/(tabs)'),
           },
         ]
       );
-    } catch (error) {
-      Alert.alert('Error', 'Failed to link account. Please try again.');
+    } catch (exchangeError: any) {
+      console.error('Token exchange error:', exchangeError);
+      setError('Failed to connect account. Please try again.');
     } finally {
       setIsLoading(false);
     }
   }, [router]);
+
+  const handleExit = useCallback((exit: LinkExit) => {
+    console.log('Plaid Link Exit:', exit);
+    setIsLoading(false);
+
+    if (exit.error) {
+      setError(exit.error.displayMessage || 'Connection was cancelled');
+    }
+  }, []);
+
+  const handleLinkAccount = useCallback(async () => {
+    feedback.onButtonPress();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Get link token from backend
+      const linkToken = await createLinkToken();
+
+      if (!linkToken) {
+        throw new Error('Failed to create link token');
+      }
+
+      // Create Plaid Link with token
+      create({ token: linkToken });
+
+      // Open Plaid Link with callbacks
+      open({
+        onSuccess: handleSuccess,
+        onExit: handleExit,
+      });
+    } catch (err: any) {
+      console.error('Error starting Plaid Link:', err);
+      setError(err.message || 'Failed to initialize bank connection');
+      setIsLoading(false);
+    }
+  }, [handleSuccess, handleExit]);
 
   const handleSkip = useCallback(() => {
     feedback.onButtonPress();
@@ -77,6 +147,11 @@ export default function LinkAccountScreen() {
   const handleBack = useCallback(() => {
     feedback.onButtonPress();
     router.back();
+  }, [router]);
+
+  const handleContinue = useCallback(() => {
+    feedback.onButtonPress();
+    router.replace('/(tabs)');
   }, [router]);
 
   return (
@@ -102,9 +177,16 @@ export default function LinkAccountScreen() {
 
         <Text style={styles.description}>
           {isLinked
-            ? 'Your transactions will sync automatically. Scout will analyze your spending and help you reach your goals.'
+            ? `${linkedAccountsCount} account${linkedAccountsCount > 1 ? 's' : ''} connected. Your transactions will sync automatically. Scout will analyze your spending and help you reach your goals.`
             : 'Securely link your bank accounts to track spending, see your net worth, and get personalized insights from Scout.'}
         </Text>
+
+        {error && (
+          <View style={styles.errorContainer}>
+            <AlertCircle size={20} color={Colors.error} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
 
         <View style={styles.features}>
           <View style={styles.featureItem}>
@@ -146,36 +228,37 @@ export default function LinkAccountScreen() {
       </View>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
-        {!isLinked && (
-          <>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={handleLinkAccount}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color={Colors.white} />
-              ) : (
-                <Text style={styles.primaryButtonText}>Connect Bank Account</Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={handleSkip}
-              disabled={isLoading}
-            >
-              <Text style={styles.secondaryButtonText}>Skip for Now</Text>
-            </TouchableOpacity>
-          </>
-        )}
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={isLinked ? handleContinue : handleLinkAccount}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color={Colors.white} />
+          ) : (
+            <Text style={styles.primaryButtonText}>
+              {isLinked ? 'Go to Dashboard' : 'Connect Bank Account'}
+            </Text>
+          )}
+        </TouchableOpacity>
 
         {isLinked && (
           <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => router.replace('/(tabs)')}
+            style={styles.secondaryButton}
+            onPress={handleLinkAccount}
+            disabled={isLoading}
           >
-            <Text style={styles.primaryButtonText}>Go to Dashboard</Text>
+            <Text style={styles.secondaryButtonText}>Link Another Account</Text>
+          </TouchableOpacity>
+        )}
+
+        {!isLinked && (
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={handleSkip}
+            disabled={isLoading}
+          >
+            <Text style={styles.secondaryButtonText}>Skip for Now</Text>
           </TouchableOpacity>
         )}
 
@@ -231,8 +314,22 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: 32,
+    marginBottom: 24,
     paddingHorizontal: 12,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${Colors.error}15`,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 24,
+    gap: 8,
+  },
+  errorText: {
+    color: Colors.error,
+    fontSize: 14,
+    flex: 1,
   },
   features: {
     width: '100%',

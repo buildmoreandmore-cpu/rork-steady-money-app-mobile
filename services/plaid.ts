@@ -8,6 +8,7 @@ export interface PlaidAccount {
   mask: string;
   type: string;
   subtype: string;
+  institution_name: string;
   balances: {
     available: number | null;
     current: number | null;
@@ -25,15 +26,26 @@ export interface PlaidTransaction {
   pending: boolean;
 }
 
+// Helper to get auth headers
+const getAuthHeaders = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('Not authenticated');
+  }
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${session.access_token}`,
+  };
+};
+
 // Create a link token for Plaid Link
-export const createLinkToken = async (userId: string): Promise<string> => {
+export const createLinkToken = async (): Promise<string> => {
+  const headers = await getAuthHeaders();
+
   const response = await fetch(`${SUPABASE_URL}/functions/v1/plaid-create-link-token`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-    },
-    body: JSON.stringify({ user_id: userId }),
+    headers,
+    body: JSON.stringify({}),
   });
 
   if (!response.ok) {
@@ -46,16 +58,20 @@ export const createLinkToken = async (userId: string): Promise<string> => {
 };
 
 // Exchange public token for access token (after user links account)
-export const exchangePublicToken = async (publicToken: string, userId: string): Promise<void> => {
+export const exchangePublicToken = async (
+  publicToken: string,
+  institutionId: string,
+  institutionName: string
+): Promise<void> => {
+  const headers = await getAuthHeaders();
+
   const response = await fetch(`${SUPABASE_URL}/functions/v1/plaid-exchange-token`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-    },
+    headers,
     body: JSON.stringify({
       public_token: publicToken,
-      user_id: userId,
+      institution_id: institutionId,
+      institution_name: institutionName,
     }),
   });
 
@@ -65,15 +81,14 @@ export const exchangePublicToken = async (publicToken: string, userId: string): 
   }
 };
 
-// Get linked accounts for a user
-export const getLinkedAccounts = async (userId: string): Promise<PlaidAccount[]> => {
+// Get linked accounts for the current user
+export const getLinkedAccounts = async (): Promise<PlaidAccount[]> => {
+  const headers = await getAuthHeaders();
+
   const response = await fetch(`${SUPABASE_URL}/functions/v1/plaid-get-accounts`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-    },
-    body: JSON.stringify({ user_id: userId }),
+    headers,
+    body: JSON.stringify({}),
   });
 
   if (!response.ok) {
@@ -85,20 +100,17 @@ export const getLinkedAccounts = async (userId: string): Promise<PlaidAccount[]>
   return data.accounts;
 };
 
-// Get transactions for a user
+// Get transactions for the current user
 export const getTransactions = async (
-  userId: string,
   startDate?: string,
   endDate?: string
 ): Promise<PlaidTransaction[]> => {
+  const headers = await getAuthHeaders();
+
   const response = await fetch(`${SUPABASE_URL}/functions/v1/plaid-get-transactions`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-    },
+    headers,
     body: JSON.stringify({
-      user_id: userId,
       start_date: startDate,
       end_date: endDate,
     }),
@@ -114,15 +126,13 @@ export const getTransactions = async (
 };
 
 // Unlink an account
-export const unlinkAccount = async (userId: string, itemId: string): Promise<void> => {
+export const unlinkAccount = async (itemId: string): Promise<void> => {
+  const headers = await getAuthHeaders();
+
   const response = await fetch(`${SUPABASE_URL}/functions/v1/plaid-unlink-account`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-    },
+    headers,
     body: JSON.stringify({
-      user_id: userId,
       item_id: itemId,
     }),
   });

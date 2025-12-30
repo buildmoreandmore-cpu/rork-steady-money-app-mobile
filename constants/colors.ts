@@ -8,6 +8,7 @@ export default {
   success: "#00B894",
   warning: "#FDCB6E",
   alert: "#FF7675",
+  error: "#FF7675",
   
   background: "#FAFBFC",
   surface: "#FFFFFF",

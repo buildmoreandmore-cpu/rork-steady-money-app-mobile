@@ -195,15 +195,17 @@ export default function OnboardingScreen() {
         profileType,
       }));
 
-      // If user wants to link accounts, navigate to link-account screen
+      // After onboarding, user needs to sign up/log in
+      // The _layout will handle routing to login
+      // Store whether they want to link accounts for post-auth flow
       if (trackingMethod === 'link_accounts' || trackingMethod === 'mix_both') {
-        router.replace('/link-account');
-      } else {
-        router.replace('/(tabs)');
+        await AsyncStorage.setItem('should_link_accounts', 'true');
       }
+
+      router.replace('/login');
     } catch (error) {
       console.error('Error saving onboarding state:', error);
-      router.replace('/(tabs)');
+      router.replace('/login');
     }
   }, [moneyGoal, trackingMethod, profileType, router]);
 
