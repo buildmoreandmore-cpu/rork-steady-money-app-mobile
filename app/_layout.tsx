@@ -119,7 +119,7 @@ function RootLayoutNav() {
     const inAuth = (segments[0] as any) === 'auth';
     const isAuthScreen = inLogin || inSignup;
 
-    if (!isOnboardingComplete && !inOnboarding) {
+    if (!isOnboardingComplete && !inOnboarding && !isAuthScreen) {
       router.replace('/onboarding' as any);
     } else if (isOnboardingComplete && !session && !isAuthScreen && !inOnboarding) {
       router.replace('/login' as any);

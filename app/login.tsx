@@ -47,19 +47,13 @@ export default function LoginScreen() {
         Alert.alert('Error', error.message);
       } else {
         feedback.onGoalAchieved();
-        // Check onboarding status first
-        const onboardingComplete = await AsyncStorage.getItem('onboarding_completed');
-        if (onboardingComplete !== 'true') {
-          router.replace('/onboarding' as any);
+        // Check if user should link accounts
+        const shouldLink = await AsyncStorage.getItem('should_link_accounts');
+        if (shouldLink === 'true') {
+          await AsyncStorage.removeItem('should_link_accounts');
+          router.replace('/link-account' as any);
         } else {
-          // Check if user should link accounts
-          const shouldLink = await AsyncStorage.getItem('should_link_accounts');
-          if (shouldLink === 'true') {
-            await AsyncStorage.removeItem('should_link_accounts');
-            router.replace('/link-account' as any);
-          } else {
-            router.replace('/(tabs)');
-          }
+          router.replace('/(tabs)');
         }
       }
     } catch {
