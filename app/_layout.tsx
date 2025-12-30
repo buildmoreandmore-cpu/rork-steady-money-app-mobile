@@ -125,7 +125,7 @@ function RootLayoutNav() {
       router.replace('/login' as any);
     } else if (session && biometricEnabled && !biometricVerified && !inAuth) {
       router.replace('/auth' as any);
-    } else if (session && (!biometricEnabled || biometricVerified) && (isAuthScreen || inOnboarding || inAuth)) {
+    } else if (session && (!biometricEnabled || biometricVerified) && isOnboardingComplete && (isAuthScreen || inAuth)) {
       router.replace('/(tabs)');
     }
   }, [isOnboardingComplete, session, biometricEnabled, biometricVerified, isLoading, segments, router]);
