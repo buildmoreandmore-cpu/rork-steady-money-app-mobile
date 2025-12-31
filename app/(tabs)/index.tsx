@@ -21,6 +21,8 @@ import {
   Fuel,
   Package,
   Clock,
+  Settings,
+  MessageCircle,
 } from 'lucide-react-native';
 import { feedback } from '@/services/feedback';
 
@@ -124,15 +126,26 @@ export default function TodayScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.greeting}>{getGreeting()}, Francis</Text>
-          <View style={styles.dateContainer}>
-            <Text style={styles.date}>
-              {new Date().toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'short',
-                day: 'numeric',
-              })}
-            </Text>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.greeting}>{getGreeting()}, Francis</Text>
+              <Text style={styles.date}>
+                {new Date().toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={() => {
+                feedback.onButtonPress();
+                router.push('/settings' as any);
+              }}
+            >
+              <Settings size={22} color={Colors.textSecondary} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -288,19 +301,35 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 24,
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
   greeting: {
     fontSize: 28,
     fontWeight: '700' as const,
     color: Colors.text,
     letterSpacing: -0.5,
   },
-  dateContainer: {
-    marginTop: 4,
-  },
   date: {
     fontSize: 15,
     color: Colors.textSecondary,
     fontWeight: '500' as const,
+    marginTop: 4,
+  },
+  settingsButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
   snapshotCard: {
     backgroundColor: Colors.surface,
