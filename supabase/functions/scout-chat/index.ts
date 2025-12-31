@@ -24,13 +24,13 @@ serve(async (req) => {
   }
 
   try {
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
-    if (!OPENAI_API_KEY) {
+    if (!GEMINI_API_KEY) {
       // Return a helpful fallback if no API key
       return new Response(
         JSON.stringify({
-          message: "I'm currently in demo mode. To get personalized AI responses, please set up the OpenAI API key in your Supabase Edge Function settings.\n\nIn the meantime, I can still help with general financial guidance!",
+          message: "I'm currently in demo mode. To get personalized AI responses, please set up the GEMINI_API_KEY in your Supabase Edge Function settings.\n\nIn the meantime, I can still help with general financial guidance!",
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -40,42 +40,79 @@ serve(async (req) => {
 
     const { message, history, context, systemPrompt }: RequestBody = await req.json();
 
-    // Build messages array for OpenAI
-    const messages: ChatMessage[] = [
-      {
-        role: "system",
-        content: systemPrompt + context,
-      },
-      ...history.slice(-8), // Keep last 8 messages for context
-      {
-        role: "user",
-        content: message,
-      },
-    ];
+    // Convert chat history to Gemini format
+    const geminiHistory = history.slice(-8).map(msg => ({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text: msg.content }],
+    }));
 
-    // Call OpenAI API
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages,
-        max_tokens: 500,
-        temperature: 0.7,
-      }),
-    });
+    // Build the full prompt with system context
+    const fullSystemPrompt = systemPrompt + context;
+
+    // Call Gemini API
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            // System instruction as first user message
+            {
+              role: "user",
+              parts: [{ text: `System Instructions: ${fullSystemPrompt}\n\nPlease acknowledge these instructions and respond to the user's message below.` }],
+            },
+            {
+              role: "model",
+              parts: [{ text: "I understand. I'm Scout, your friendly personal financial advisor. I'll be warm, encouraging, and non-judgmental. I'll focus on small wins and actionable steps. How can I help you today?" }],
+            },
+            // Previous conversation history
+            ...geminiHistory,
+            // Current user message
+            {
+              role: "user",
+              parts: [{ text: message }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 500,
+            topK: 40,
+            topP: 0.95,
+          },
+          safetySettings: [
+            {
+              category: "HARM_CATEGORY_HARASSMENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE",
+            },
+            {
+              category: "HARM_CATEGORY_HATE_SPEECH",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE",
+            },
+            {
+              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE",
+            },
+            {
+              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE",
+            },
+          ],
+        }),
+      }
+    );
 
     if (!response.ok) {
       const error = await response.text();
-      console.error("OpenAI API error:", error);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      console.error("Gemini API error:", error);
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const assistantMessage = data.choices[0]?.message?.content || "I'm having trouble thinking right now. Please try again!";
+    const assistantMessage = data.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "I'm having trouble thinking right now. Please try again!";
 
     return new Response(
       JSON.stringify({ message: assistantMessage }),
