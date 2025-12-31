@@ -16,7 +16,7 @@ import { Send, Sparkles, User, Trash2 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { scoutService, ChatMessage } from '@/services/scout';
 import { feedback } from '@/services/feedback';
-import { mockData } from '@/mocks/data';
+import { mockSnapshot, mockTransactions, mockSubscriptions } from '@/mocks/data';
 
 const SUGGESTED_PROMPTS = [
   "Can I afford a $500 purchase?",
@@ -35,18 +35,18 @@ export default function ScoutScreen() {
   useEffect(() => {
     // Set context from mock data (will be real data later)
     scoutService.setContext({
-      netWorth: mockData.snapshot.netWorth,
-      monthlyIncome: mockData.snapshot.monthlyIncome,
-      monthlyExpenses: mockData.snapshot.monthlyExpenses,
-      recentTransactions: mockData.transactions.map(t => ({
+      netWorth: mockSnapshot.netWorth,
+      monthlyIncome: mockSnapshot.monthlyIncome,
+      monthlyExpenses: mockSnapshot.monthlyExpenses,
+      recentTransactions: mockTransactions.map(t => ({
         merchant: t.merchant,
         amount: t.amount,
         category: t.category,
       })),
-      subscriptions: mockData.subscriptions.map(s => ({
+      subscriptions: mockSubscriptions.map(s => ({
         name: s.name,
         amount: s.amount,
-        isUsed: s.isActive && (s.hoursUsed ?? 0) > 0,
+        isUsed: (s.hoursUsed ?? 0) > 0,
       })),
     });
 
