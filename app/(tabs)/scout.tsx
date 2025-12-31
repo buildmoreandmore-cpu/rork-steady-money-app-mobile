@@ -16,7 +16,14 @@ import { Send, Sparkles, User, Trash2 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { scoutService, ChatMessage } from '@/services/scout';
 import { feedback } from '@/services/feedback';
-import { mockSnapshot, mockTransactions, mockSubscriptions } from '@/mocks/data';
+import {
+  mockSnapshot,
+  mockTransactions,
+  mockSubscriptions,
+  mockBills,
+  mockTimeline,
+  mockProfiles,
+} from '@/mocks/data';
 
 const SUGGESTED_PROMPTS = [
   "Can I afford a $500 purchase?",
@@ -33,20 +40,59 @@ export default function ScoutScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    // Set context from mock data (will be real data later)
+    // Set full dashboard context for Scout
     scoutService.setContext({
+      // Financial snapshot
       netWorth: mockSnapshot.netWorth,
+      netWorthChange: mockSnapshot.netWorthChange,
       monthlyIncome: mockSnapshot.monthlyIncome,
       monthlyExpenses: mockSnapshot.monthlyExpenses,
+      savingsRate: mockSnapshot.savingsRate,
+
+      // Transactions
       recentTransactions: mockTransactions.map(t => ({
         merchant: t.merchant,
         amount: t.amount,
         category: t.category,
+        type: t.type,
       })),
+
+      // Subscriptions with usage details
       subscriptions: mockSubscriptions.map(s => ({
         name: s.name,
         amount: s.amount,
-        isUsed: (s.hoursUsed ?? 0) > 0,
+        hoursUsed: s.hoursUsed,
+        lastUsed: s.lastUsed,
+      })),
+
+      // Bills with due dates
+      bills: mockBills.map(b => ({
+        name: b.name,
+        amount: b.amount,
+        dueDate: b.dueDate,
+        isAutoPay: b.isAutoPay,
+      })),
+
+      // Budget allocations (default 50/30/20)
+      budget: {
+        fixedPercent: 50,
+        strategicPercent: 20,
+        lifestylePercent: 30,
+      },
+
+      // Timeline/net worth history
+      timeline: mockTimeline.map(t => ({
+        label: t.label,
+        netWorth: t.netWorth,
+        isFuture: t.isFuture,
+      })),
+
+      // Profiles
+      profiles: mockProfiles.map(p => ({
+        name: p.name,
+        type: p.type,
+        balance: p.balance,
+        isActive: p.isActive,
       })),
     });
 

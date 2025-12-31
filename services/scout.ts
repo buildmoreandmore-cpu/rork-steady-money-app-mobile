@@ -18,23 +18,64 @@ export interface ChatMessage {
 }
 
 export interface ScoutContext {
+  // Financial snapshot
   netWorth?: number;
+  netWorthChange?: number;
   monthlyIncome?: number;
   monthlyExpenses?: number;
+  savingsRate?: number;
+
+  // Transactions
   recentTransactions?: Array<{
     merchant: string;
     amount: number;
     category: string;
+    type: string;
   }>;
+
+  // Subscriptions
   subscriptions?: Array<{
     name: string;
     amount: number;
-    isUsed: boolean;
+    hoursUsed?: number;
+    lastUsed?: string;
   }>;
+
+  // Bills
+  bills?: Array<{
+    name: string;
+    amount: number;
+    dueDate: string;
+    isAutoPay: boolean;
+  }>;
+
+  // Goals
   goals?: Array<{
     name: string;
     target: number;
     current: number;
+  }>;
+
+  // Budget allocations
+  budget?: {
+    fixedPercent: number;
+    strategicPercent: number;
+    lifestylePercent: number;
+  };
+
+  // Timeline/Net worth history
+  timeline?: Array<{
+    label: string;
+    netWorth: number;
+    isFuture: boolean;
+  }>;
+
+  // Profiles
+  profiles?: Array<{
+    name: string;
+    type: string;
+    balance: number;
+    isActive: boolean;
   }>;
 }
 
@@ -77,8 +118,13 @@ class ScoutService {
   private buildContextMessage(): string {
     const parts: string[] = [];
 
+    // Financial Snapshot
     if (this.context.netWorth !== undefined) {
-      parts.push(`User's current net worth: $${this.context.netWorth.toLocaleString()}`);
+      parts.push(`Current net worth: $${this.context.netWorth.toLocaleString()}`);
+    }
+    if (this.context.netWorthChange !== undefined) {
+      const sign = this.context.netWorthChange >= 0 ? '+' : '';
+      parts.push(`Net worth change this month: ${sign}$${this.context.netWorthChange.toLocaleString()}`);
     }
     if (this.context.monthlyIncome !== undefined) {
       parts.push(`Monthly income: $${this.context.monthlyIncome.toLocaleString()}`);
@@ -86,22 +132,84 @@ class ScoutService {
     if (this.context.monthlyExpenses !== undefined) {
       parts.push(`Monthly expenses: $${this.context.monthlyExpenses.toLocaleString()}`);
     }
+    if (this.context.savingsRate !== undefined) {
+      parts.push(`Savings rate: ${this.context.savingsRate.toFixed(1)}%`);
+    }
+
+    // Budget Allocations
+    if (this.context.budget) {
+      parts.push(`\nBudget allocation: ${this.context.budget.fixedPercent}% fixed (needs), ${this.context.budget.strategicPercent}% strategic (savings/debt), ${this.context.budget.lifestylePercent}% lifestyle (wants)`);
+    }
+
+    // Recent Transactions
     if (this.context.recentTransactions?.length) {
       const txSummary = this.context.recentTransactions
-        .slice(0, 5)
-        .map(tx => `${tx.merchant}: $${Math.abs(tx.amount)}`)
+        .map(tx => `${tx.merchant} (${tx.category}): ${tx.type === 'income' ? '+' : '-'}$${Math.abs(tx.amount)}`)
         .join(', ');
-      parts.push(`Recent transactions: ${txSummary}`);
+      parts.push(`\nRecent transactions: ${txSummary}`);
     }
+
+    // Subscriptions
     if (this.context.subscriptions?.length) {
-      const unusedSubs = this.context.subscriptions.filter(s => !s.isUsed);
+      const subDetails = this.context.subscriptions.map(s => {
+        const usage = s.hoursUsed !== undefined ? ` - ${s.hoursUsed}h used` : '';
+        const lastUsed = s.lastUsed ? ` (last used: ${s.lastUsed})` : '';
+        return `${s.name}: $${s.amount}/mo${usage}${lastUsed}`;
+      }).join(', ');
+      parts.push(`\nSubscriptions: ${subDetails}`);
+
+      // Highlight unused subscriptions
+      const unusedSubs = this.context.subscriptions.filter(s => s.hoursUsed === 0 || s.lastUsed);
       if (unusedSubs.length > 0) {
-        parts.push(`Unused subscriptions: ${unusedSubs.map(s => s.name).join(', ')}`);
+        parts.push(`⚠️ Potentially unused subscriptions: ${unusedSubs.map(s => s.name).join(', ')}`);
       }
     }
 
+    // Bills
+    if (this.context.bills?.length) {
+      const billDetails = this.context.bills.map(b => {
+        const autoPay = b.isAutoPay ? ' (auto-pay)' : '';
+        return `${b.name}: $${b.amount} due ${b.dueDate}${autoPay}`;
+      }).join(', ');
+      parts.push(`\nUpcoming bills: ${billDetails}`);
+    }
+
+    // Goals
+    if (this.context.goals?.length) {
+      const goalDetails = this.context.goals.map(g => {
+        const progress = ((g.current / g.target) * 100).toFixed(0);
+        return `${g.name}: $${g.current.toLocaleString()}/$${g.target.toLocaleString()} (${progress}%)`;
+      }).join(', ');
+      parts.push(`\nGoals: ${goalDetails}`);
+    }
+
+    // Timeline
+    if (this.context.timeline?.length) {
+      const past = this.context.timeline.filter(t => !t.isFuture);
+      const future = this.context.timeline.filter(t => t.isFuture);
+
+      if (past.length > 0) {
+        const pastSummary = past.map(t => `${t.label}: $${t.netWorth.toLocaleString()}`).join(' → ');
+        parts.push(`\nNet worth history: ${pastSummary}`);
+      }
+      if (future.length > 0) {
+        const futureSummary = future.map(t => `${t.label}: $${t.netWorth.toLocaleString()}`).join(' → ');
+        parts.push(`Projected: ${futureSummary}`);
+      }
+    }
+
+    // Profiles
+    if (this.context.profiles?.length) {
+      const activeProfile = this.context.profiles.find(p => p.isActive);
+      if (activeProfile) {
+        parts.push(`\nActive profile: ${activeProfile.name} (${activeProfile.type})`);
+      }
+      const totalAcrossProfiles = this.context.profiles.reduce((sum, p) => sum + p.balance, 0);
+      parts.push(`Total across all profiles: $${totalAcrossProfiles.toLocaleString()}`);
+    }
+
     return parts.length > 0
-      ? `\n\nUser's financial context:\n${parts.join('\n')}`
+      ? `\n\nUser's complete financial dashboard:\n${parts.join('\n')}`
       : '';
   }
 
