@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Home, Sliders, TrendingUp, Settings } from "lucide-react-native";
+import { Home, Sparkles, Sliders, TrendingUp, Settings } from "lucide-react-native";
 import React from "react";
 import { Platform } from "react-native";
 
@@ -30,6 +30,13 @@ export default function TabLayout() {
         options={{
           title: "Today",
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="scout"
+        options={{
+          title: "Scout",
+          tabBarIcon: ({ color, size }) => <Sparkles color={color} size={size} />,
         }}
       />
       <Tabs.Screen
