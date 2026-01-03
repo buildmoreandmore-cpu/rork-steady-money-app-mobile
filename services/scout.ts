@@ -239,7 +239,17 @@ class ScoutService {
 
       if (error) {
         console.error('Scout API error:', error);
-        throw new Error('Failed to get response from Scout');
+        console.log('Using fallback response due to API error');
+        // Use fallback instead of throwing
+        const fallback = this.getFallbackResponse(userMessage);
+        const assistantMsg: ChatMessage = {
+          id: `assistant-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          role: 'assistant',
+          content: fallback,
+          timestamp: new Date(),
+        };
+        this.conversationHistory.push(assistantMsg);
+        return fallback;
       }
 
       const assistantMessage = data?.message || this.getFallbackResponse(userMessage);

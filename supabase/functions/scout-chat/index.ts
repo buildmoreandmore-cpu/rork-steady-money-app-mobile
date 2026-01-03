@@ -27,18 +27,36 @@ serve(async (req) => {
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
     if (!GEMINI_API_KEY) {
-      // Return a helpful fallback if no API key
+      console.log("GEMINI_API_KEY not found - returning demo mode message");
       return new Response(
         JSON.stringify({
           message: "I'm currently in demo mode. To get personalized AI responses, please set up the GEMINI_API_KEY in your Supabase Edge Function settings.\n\nIn the meantime, I can still help with general financial guidance!",
         }),
         {
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
 
-    const { message, history, context, systemPrompt }: RequestBody = await req.json();
+    let requestBody: RequestBody;
+    try {
+      requestBody = await req.json();
+    } catch (parseError) {
+      console.error("Failed to parse request body:", parseError);
+      return new Response(
+        JSON.stringify({
+          message: "I had trouble understanding your request. Please try again!",
+          error: "Invalid request format",
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const { message, history, context, systemPrompt } = requestBody;
 
     // Convert chat history to Gemini format
     const geminiHistory = history.slice(-8).map(msg => ({
@@ -106,8 +124,17 @@ serve(async (req) => {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error("Gemini API error:", error);
-      throw new Error(`Gemini API error: ${response.status}`);
+      console.error("Gemini API error:", response.status, error);
+      return new Response(
+        JSON.stringify({
+          message: "I'm having trouble connecting to my knowledge base right now. Please try again in a moment!",
+          error: `Gemini API returned ${response.status}`,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const data = await response.json();
@@ -126,10 +153,10 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         message: "I'm having a moment - please try again! If this keeps happening, check your connection.",
-        error: error.message,
+        error: error?.message || "Unknown error",
       }),
       {
-        status: 200, // Return 200 so the app can show the fallback message
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
