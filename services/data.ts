@@ -4,7 +4,7 @@
  */
 
 import { supabase } from './supabase';
-import { mockData } from '@/mocks/data';
+import { mockSnapshot, mockSubscriptions, mockBills, mockTimeline, mockTransactions, mockScoutActions } from '@/mocks/data';
 
 // Types
 export interface Subscription {
@@ -93,12 +93,12 @@ class DataService {
   // Financial Snapshot
   async getFinancialSnapshot(): Promise<FinancialSnapshot> {
     if (this.useMockData) {
-      return mockData.snapshot;
+      return mockSnapshot;
     }
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return mockData.snapshot;
+      if (!user) return mockSnapshot;
 
       const { data, error } = await supabase
         .from('net_worth_history')
@@ -107,7 +107,7 @@ class DataService {
         .order('date', { ascending: false })
         .limit(2);
 
-      if (error || !data?.length) return mockData.snapshot;
+      if (error || !data?.length) return mockSnapshot;
 
       const current = data[0];
       const previous = data[1];
@@ -119,14 +119,14 @@ class DataService {
         netWorthChange: previous ? current.net_worth - previous.net_worth : 0,
       };
     } catch {
-      return mockData.snapshot;
+      return mockSnapshot;
     }
   }
 
   // Subscriptions
   async getSubscriptions(): Promise<Subscription[]> {
     if (this.useMockData) {
-      return mockData.subscriptions.map(s => ({
+      return mockSubscriptions.map((s: any) => ({
         id: s.id,
         name: s.name,
         amount: s.amount,
@@ -199,7 +199,7 @@ class DataService {
   // Bills
   async getBills(): Promise<Bill[]> {
     if (this.useMockData) {
-      return mockData.bills.map(b => ({
+      return mockBills.map((b: any) => ({
         id: b.id,
         name: b.name,
         amount: b.amount,
@@ -301,7 +301,7 @@ class DataService {
   // Net Worth History / Timeline
   async getNetWorthHistory(): Promise<NetWorthSnapshot[]> {
     if (this.useMockData) {
-      return mockData.timeline.map((t, i) => ({
+      return mockTimeline.map((t: any, i: number) => ({
         id: `mock-${i}`,
         date: t.date,
         net_worth: t.amount,
@@ -392,7 +392,7 @@ class DataService {
   // Transactions (from Plaid or manual)
   async getRecentTransactions(limit = 10) {
     if (this.useMockData) {
-      return mockData.transactions.slice(0, limit);
+      return mockTransactions.slice(0, limit);
     }
 
     try {
@@ -415,7 +415,7 @@ class DataService {
   // Scout Actions
   async getScoutActions() {
     if (this.useMockData) {
-      return mockData.scoutActions;
+      return mockScoutActions;
     }
 
     try {

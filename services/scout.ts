@@ -26,35 +26,35 @@ export interface ScoutContext {
   savingsRate?: number;
 
   // Transactions
-  recentTransactions?: Array<{
+  recentTransactions?: {
     merchant: string;
     amount: number;
     category: string;
     type: string;
-  }>;
+  }[];
 
   // Subscriptions
-  subscriptions?: Array<{
+  subscriptions?: {
     name: string;
     amount: number;
     hoursUsed?: number;
     lastUsed?: string;
-  }>;
+  }[];
 
   // Bills
-  bills?: Array<{
+  bills?: {
     name: string;
     amount: number;
     dueDate: string;
     isAutoPay: boolean;
-  }>;
+  }[];
 
   // Goals
-  goals?: Array<{
+  goals?: {
     name: string;
     target: number;
     current: number;
-  }>;
+  }[];
 
   // Budget allocations
   budget?: {
@@ -64,19 +64,19 @@ export interface ScoutContext {
   };
 
   // Timeline/Net worth history
-  timeline?: Array<{
+  timeline?: {
     label: string;
     netWorth: number;
     isFuture: boolean;
-  }>;
+  }[];
 
   // Profiles
-  profiles?: Array<{
+  profiles?: {
     name: string;
     type: string;
     balance: number;
     isActive: boolean;
-  }>;
+  }[];
 }
 
 const SCOUT_SYSTEM_PROMPT = `You are Scout, a friendly and knowledgeable personal financial advisor in the Steady Money app. Your personality:
@@ -214,9 +214,9 @@ class ScoutService {
   }
 
   async sendMessage(userMessage: string): Promise<string> {
-    // Add user message to history
+    // Add user message to history with unique ID
     const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
+      id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       role: 'user',
       content: userMessage,
       timestamp: new Date(),
@@ -244,9 +244,9 @@ class ScoutService {
 
       const assistantMessage = data?.message || this.getFallbackResponse(userMessage);
 
-      // Add assistant message to history
+      // Add assistant message to history with unique ID
       const assistantMsg: ChatMessage = {
-        id: `assistant-${Date.now()}`,
+        id: `assistant-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         role: 'assistant',
         content: assistantMessage,
         timestamp: new Date(),
@@ -260,7 +260,7 @@ class ScoutService {
       const fallback = this.getFallbackResponse(userMessage);
 
       const assistantMsg: ChatMessage = {
-        id: `assistant-${Date.now()}`,
+        id: `assistant-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         role: 'assistant',
         content: fallback,
         timestamp: new Date(),

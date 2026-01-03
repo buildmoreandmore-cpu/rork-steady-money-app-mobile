@@ -1,67 +1,63 @@
-{
-  "cli": {
-    "version": ">= 12.0.0",
-    "appVersionSource": "remote"
-  },
-  "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "ios": {
-        "resourceClass": "m-medium",
-        "simulator": false
+
+  {
+    "cli": {
+      "version": ">= 12.0.0",
+      "appVersionSource": "remote"
+    },
+    "build": {
+      "development": {
+        "developmentClient": true,
+        "distribution": "internal",
+        "ios": {
+          "resourceClass": "m-medium",
+          "simulator": false
+        },
+        "android": {
+          "buildType": "apk"
+        },
+        "env": {
+          "EXPO_PUBLIC_ENV": "development"
+        }
       },
-      "android": {
-        "buildType": "apk"
+      "development-simulator": {
+        "developmentClient": true,
+        "distribution": "internal",
+        "ios": {
+          "resourceClass": "m-medium",
+          "simulator": true
+        },
+        "env": {
+          "EXPO_PUBLIC_ENV": "development"
+        }
       },
-      "env": {
-        "EXPO_PUBLIC_ENV": "development"
+      "preview": {
+        "distribution": "internal",
+        "ios": {
+          "resourceClass": "m-medium"
+        },
+        "android": {
+          "buildType": "apk"
+        },
+        "env": {
+          "EXPO_PUBLIC_ENV": "preview"
+        }
+      },
+      "production": {
+        "ios": {
+          "resourceClass": "m-medium"
+        },
+        "autoIncrement": true,
+        "env": {
+          "EXPO_PUBLIC_ENV": "production"
+        }
       }
     },
-    "development-simulator": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "ios": {
-        "resourceClass": "m-medium",
-        "simulator": true
-      },
-      "env": {
-        "EXPO_PUBLIC_ENV": "development"
-      }
-    },
-    "preview": {
-      "distribution": "internal",
-      "ios": {
-        "resourceClass": "m-medium"
-      },
-      "android": {
-        "buildType": "apk"
-      },
-      "env": {
-        "EXPO_PUBLIC_ENV": "preview"
-      }
-    },
-    "production": {
-      "ios": {
-        "resourceClass": "m-medium"
-      },
-      "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_ENV": "production"
-      }
-    }
-  },
-  "submit": {
-    "production": {
-      "ios": {
-        "appleId": "",
-        "ascAppId": "",
-        "appleTeamId": ""
-      },
-      "android": {
-        "serviceAccountKeyPath": "",
-        "track": "internal"
+    "submit": {
+      "production": {
+        "ios": {
+          "appleId": "martinjdfrancis@gmail.com",
+          "appleTeamId": "N2AKW5AB3L"
+        }
       }
     }
   }
-}

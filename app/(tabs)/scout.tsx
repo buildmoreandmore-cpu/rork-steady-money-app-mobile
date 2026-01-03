@@ -119,23 +119,16 @@ export default function ScoutScreen() {
     setInputText('');
     setIsLoading(true);
 
-    // Optimistically add user message
-    const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: userMessage,
-      timestamp: new Date(),
-    };
-    setMessages(prev => [...prev, userMsg]);
-
     try {
-      const response = await scoutService.sendMessage(userMessage);
+      await scoutService.sendMessage(userMessage);
       feedback.onActionCompleted();
 
       // Update messages from service (includes both user and assistant)
       setMessages(scoutService.getConversationHistory());
     } catch (error) {
       console.error('Error sending message:', error);
+      // Update messages to show what was added by service
+      setMessages(scoutService.getConversationHistory());
     } finally {
       setIsLoading(false);
     }
