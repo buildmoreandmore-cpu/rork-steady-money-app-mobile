@@ -1,6 +1,9 @@
-import { supabase } from './supabase';
+/**
+ * Plaid Service
+ * Uses supabase.functions.invoke() for proper authentication handling
+ */
 
-const SUPABASE_URL = 'https://lafepahnnxtjqbvebfix.supabase.co';
+import { supabase } from './supabase';
 
 export interface PlaidAccount {
   id: string;
@@ -26,40 +29,32 @@ export interface PlaidTransaction {
   pending: boolean;
 }
 
-// Helper to get auth headers
-const getAuthHeaders = async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) {
-    throw new Error('Not authenticated');
-  }
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${session.access_token}`,
-  };
-};
-
 // Create a link token for Plaid Link
 export const createLinkToken = async (): Promise<string> => {
-  const headers = await getAuthHeaders();
-
   // Get user ID from session
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user?.id) {
-    throw new Error('Not authenticated');
+    throw new Error('Not authenticated - please log in first');
   }
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/plaid-create-link-token`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ user_id: session.user.id }),
+  console.log('Creating link token for user:', session.user.id);
+
+  const { data, error } = await supabase.functions.invoke('plaid-create-link-token', {
+    body: { user_id: session.user.id },
   });
 
-  if (!response.ok) {
-    const error = await response.json();
+  console.log('Link token response:', { data, error });
+
+  if (error) {
+    console.error('Plaid create link token error:', error);
     throw new Error(error.message || 'Failed to create link token');
   }
 
-  const data = await response.json();
+  if (!data?.link_token) {
+    console.error('No link token in response:', data);
+    throw new Error(data?.error || 'No link token returned');
+  }
+
   return data.link_token;
 };
 
@@ -69,41 +64,51 @@ export const exchangePublicToken = async (
   institutionId: string,
   institutionName: string
 ): Promise<void> => {
-  const headers = await getAuthHeaders();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.id) {
+    throw new Error('Not authenticated');
+  }
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/plaid-exchange-token`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
+  console.log('Exchanging public token for institution:', institutionName);
+
+  const { data, error } = await supabase.functions.invoke('plaid-exchange-token', {
+    body: {
+      user_id: session.user.id,
       public_token: publicToken,
       institution_id: institutionId,
       institution_name: institutionName,
-    }),
+    },
   });
 
-  if (!response.ok) {
-    const error = await response.json();
+  console.log('Exchange token response:', { data, error });
+
+  if (error) {
+    console.error('Plaid exchange token error:', error);
     throw new Error(error.message || 'Failed to exchange token');
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
   }
 };
 
 // Get linked accounts for the current user
 export const getLinkedAccounts = async (): Promise<PlaidAccount[]> => {
-  const headers = await getAuthHeaders();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.id) {
+    throw new Error('Not authenticated');
+  }
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/plaid-get-accounts`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({}),
+  const { data, error } = await supabase.functions.invoke('plaid-get-accounts', {
+    body: { user_id: session.user.id },
   });
 
-  if (!response.ok) {
-    const error = await response.json();
+  if (error) {
+    console.error('Plaid get accounts error:', error);
     throw new Error(error.message || 'Failed to get accounts');
   }
 
-  const data = await response.json();
-  return data.accounts;
+  return data?.accounts || [];
 };
 
 // Get transactions for the current user
@@ -111,40 +116,43 @@ export const getTransactions = async (
   startDate?: string,
   endDate?: string
 ): Promise<PlaidTransaction[]> => {
-  const headers = await getAuthHeaders();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.id) {
+    throw new Error('Not authenticated');
+  }
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/plaid-get-transactions`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
+  const { data, error } = await supabase.functions.invoke('plaid-get-transactions', {
+    body: {
+      user_id: session.user.id,
       start_date: startDate,
       end_date: endDate,
-    }),
+    },
   });
 
-  if (!response.ok) {
-    const error = await response.json();
+  if (error) {
+    console.error('Plaid get transactions error:', error);
     throw new Error(error.message || 'Failed to get transactions');
   }
 
-  const data = await response.json();
-  return data.transactions;
+  return data?.transactions || [];
 };
 
 // Unlink an account
 export const unlinkAccount = async (itemId: string): Promise<void> => {
-  const headers = await getAuthHeaders();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.id) {
+    throw new Error('Not authenticated');
+  }
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/plaid-unlink-account`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
+  const { data, error } = await supabase.functions.invoke('plaid-unlink-account', {
+    body: {
+      user_id: session.user.id,
       item_id: itemId,
-    }),
+    },
   });
 
-  if (!response.ok) {
-    const error = await response.json();
+  if (error) {
+    console.error('Plaid unlink account error:', error);
     throw new Error(error.message || 'Failed to unlink account');
   }
 };

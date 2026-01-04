@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -24,23 +25,32 @@ import {
   Car,
   Wifi,
   AlertCircle,
-  Users,
   Smartphone,
   MessageSquare,
   CheckCircle,
   Settings,
+  Landmark,
 } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
-import { mockSubscriptions, mockBills, mockScoutActions, mockProfiles, mockNegotiableBills } from '@/mocks/data';
-import { NegotiableBill } from '@/types';
+import { dataService, Subscription, Bill } from '@/services/data';
 import { feedback } from '@/services/feedback';
+
+interface NegotiableBill {
+  id: string;
+  name: string;
+  potentialSavings: number;
+  successRate: number;
+  icon: string;
+  diyTip: string;
+}
 
 const subscriptionIcons: Record<string, React.ReactNode> = {
   'tv': <Tv size={18} color={Colors.textSecondary} />,
   'music': <Music size={18} color={Colors.textSecondary} />,
   'cloud': <Cloud size={18} color={Colors.textSecondary} />,
   'dumbbell': <Dumbbell size={18} color={Colors.textSecondary} />,
+  'default': <CreditCard size={18} color={Colors.textSecondary} />,
 };
 
 const billIcons: Record<string, React.ReactNode> = {
@@ -49,9 +59,10 @@ const billIcons: Record<string, React.ReactNode> = {
   'car': <Car size={18} color={Colors.textSecondary} />,
   'wifi': <Wifi size={18} color={Colors.textSecondary} />,
   'smartphone': <Smartphone size={18} color={Colors.textSecondary} />,
+  'default': <Receipt size={18} color={Colors.textSecondary} />,
 };
 
-type TabType = 'subscriptions' | 'bills' | 'profiles';
+type TabType = 'subscriptions' | 'bills';
 
 export default function ManageScreen() {
   const insets = useSafeAreaInsets();
@@ -59,17 +70,78 @@ export default function ManageScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('subscriptions');
   const [showNegotiation, setShowNegotiation] = useState(false);
   const [selectedBill, setSelectedBill] = useState<NegotiableBill | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const totalPotentialSavings = mockNegotiableBills.reduce(
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [scoutActions, setScoutActions] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [subsData, billsData, actionsData] = await Promise.all([
+          dataService.getSubscriptions(),
+          dataService.getBills(),
+          dataService.getScoutActions(),
+        ]);
+
+        setSubscriptions(subsData);
+        setBills(billsData);
+        setScoutActions(actionsData);
+      } catch (error) {
+        console.error('Error loading manage data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Generate negotiable bills from actual bills that are marked negotiable
+  const negotiableBills: NegotiableBill[] = bills
+    .filter(bill => bill.is_negotiable)
+    .map(bill => ({
+      id: bill.id,
+      name: bill.name,
+      potentialSavings: bill.potential_savings || Math.round(bill.amount * 0.15),
+      successRate: bill.success_rate || 70,
+      icon: getBillIcon(bill.category),
+      diyTip: `Call ${bill.name} and mention you're considering switching to a competitor. Ask about any loyalty discounts or promotions available.`,
+    }));
+
+  const totalPotentialSavings = negotiableBills.reduce(
     (sum, bill) => sum + bill.potentialSavings,
     0
   );
 
-  const totalSubscriptions = mockSubscriptions.length;
-  const totalSubscriptionCost = mockSubscriptions.reduce(
+  const totalSubscriptions = subscriptions.length;
+  const totalSubscriptionCost = subscriptions.reduce(
     (sum, sub) => sum + sub.amount,
     0
   );
+
+  function getBillIcon(category?: string): string {
+    const categoryMap: Record<string, string> = {
+      'utilities': 'zap',
+      'housing': 'home',
+      'auto': 'car',
+      'internet': 'wifi',
+      'phone': 'smartphone',
+    };
+    return categoryMap[category?.toLowerCase() || ''] || 'default';
+  }
+
+  function getSubscriptionIcon(category?: string): string {
+    const categoryMap: Record<string, string> = {
+      'streaming': 'tv',
+      'entertainment': 'tv',
+      'music': 'music',
+      'storage': 'cloud',
+      'fitness': 'dumbbell',
+    };
+    return categoryMap[category?.toLowerCase() || ''] || 'default';
+  }
 
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-US', {
@@ -79,9 +151,26 @@ export default function ManageScreen() {
     }).format(amount);
   };
 
-  const formatDate = (dateStr: string): string => {
+  const formatDate = (dateStr?: string): string => {
+    if (!dateStr) return 'N/A';
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const formatDueDay = (dueDay: number): string => {
+    const today = new Date();
+    const currentDay = today.getDate();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    let dueDate: Date;
+    if (dueDay >= currentDay) {
+      dueDate = new Date(currentYear, currentMonth, dueDay);
+    } else {
+      dueDate = new Date(currentYear, currentMonth + 1, dueDay);
+    }
+
+    return dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const handleNegotiateForMe = useCallback(() => {
@@ -104,24 +193,31 @@ export default function ManageScreen() {
     }
   }, [selectedBill]);
 
-  const handleSubscriptionPress = useCallback((subscription: typeof mockSubscriptions[0]) => {
+  const handleSubscriptionPress = useCallback((subscription: Subscription) => {
     feedback.onButtonPress();
     Alert.alert(
       subscription.name,
-      `${formatCurrency(subscription.amount)}/mo\nRenews: ${formatDate(subscription.nextBilling)}\n\nManage subscription?`,
+      `${formatCurrency(subscription.amount)}/mo\n${subscription.next_billing_date ? `Renews: ${formatDate(subscription.next_billing_date)}` : ''}\n\nManage subscription?`,
       [
-        { text: 'Cancel Sub', style: 'destructive' },
-        { text: 'Pause', onPress: () => Alert.alert('Paused', `${subscription.name} paused for 30 days.`) },
+        { text: 'Cancel Sub', style: 'destructive', onPress: () => handleCancelSubscription(subscription.id) },
         { text: 'Keep' }
       ]
     );
   }, []);
 
-  const handleBillPress = useCallback((bill: typeof mockBills[0]) => {
+  const handleCancelSubscription = async (id: string) => {
+    const success = await dataService.updateSubscription(id, { is_active: false });
+    if (success) {
+      setSubscriptions(prev => prev.filter(s => s.id !== id));
+      Alert.alert('Done', 'Subscription cancelled.');
+    }
+  };
+
+  const handleBillPress = useCallback((bill: Bill) => {
     feedback.onButtonPress();
     Alert.alert(
       bill.name,
-      `${formatCurrency(bill.amount)}/mo\nDue: ${formatDate(bill.dueDate)}\n\nBill options:`,
+      `${formatCurrency(bill.amount)}/mo\nDue: Day ${bill.due_day} of each month\n\nBill options:`,
       [
         { text: 'Set Reminder' },
         { text: 'Mark Paid', onPress: () => Alert.alert('Done!', `${bill.name} marked as paid.`) },
@@ -130,39 +226,24 @@ export default function ManageScreen() {
     );
   }, []);
 
-  const handleProfilePress = useCallback((profile: typeof mockProfiles[0]) => {
-    feedback.onButtonPress();
-    Alert.alert(
-      profile.name,
-      `Balance: ${formatCurrency(profile.balance)}\n\nSwitch to this profile?`,
-      [
-        { text: 'Switch', onPress: () => Alert.alert('Switched', `Now viewing ${profile.name} profile.`) },
-        { text: 'Cancel' }
-      ]
-    );
-  }, []);
-
-  const handleAddProfile = useCallback(() => {
-    feedback.onButtonPress();
-    Alert.alert(
-      'Add Profile',
-      'Create a new profile for:',
-      [
-        { text: 'Partner', onPress: () => Alert.alert('Coming Soon', 'Partner profiles launching soon!') },
-        { text: 'Business', onPress: () => Alert.alert('Coming Soon', 'Business profiles launching soon!') },
-        { text: 'Cancel' }
-      ]
-    );
-  }, []);
-
-  const handleSuggestionPress = useCallback((suggestion: typeof mockScoutActions[0]) => {
+  const handleSuggestionPress = useCallback((suggestion: any) => {
     feedback.onButtonPress();
     router.push('/action-detail' as any);
   }, [router]);
 
-  const suggestions = mockScoutActions.filter(
+  const suggestions = scoutActions.filter(
     (a) => a.type === 'optimize' || a.type === 'review'
   ).slice(0, 2);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={styles.loadingText}>Loading your data...</Text>
+      </View>
+    );
+  }
 
   // Negotiation Detail View
   if (selectedBill) {
@@ -252,40 +333,92 @@ export default function ManageScreen() {
             </Text>
           </View>
 
-          <View style={styles.totalSavingsCard}>
-            <Text style={styles.totalSavingsLabel}>Total Potential Savings</Text>
-            <Text style={styles.totalSavingsAmount}>${totalPotentialSavings}/mo</Text>
-            <Text style={styles.totalSavingsSublabel}>
-              ${totalPotentialSavings * 12}/year across {mockNegotiableBills.length} bills
-            </Text>
+          {negotiableBills.length > 0 ? (
+            <>
+              <View style={styles.totalSavingsCard}>
+                <Text style={styles.totalSavingsLabel}>Total Potential Savings</Text>
+                <Text style={styles.totalSavingsAmount}>${totalPotentialSavings}/mo</Text>
+                <Text style={styles.totalSavingsSublabel}>
+                  ${totalPotentialSavings * 12}/year across {negotiableBills.length} bills
+                </Text>
+              </View>
+
+              <Text style={styles.sectionLabel}>Bills we can negotiate</Text>
+              <View style={styles.listContainer}>
+                {negotiableBills.map((bill, index) => (
+                  <TouchableOpacity
+                    key={bill.id}
+                    style={[
+                      styles.negotiateBillItem,
+                      index === negotiableBills.length - 1 && styles.listItemLast,
+                    ]}
+                    onPress={() => setSelectedBill(bill)}
+                  >
+                    <View style={styles.listItemIcon}>
+                      {billIcons[bill.icon] || billIcons['default']}
+                    </View>
+                    <View style={styles.listItemContent}>
+                      <Text style={styles.listItemName}>{bill.name}</Text>
+                      <Text style={styles.listItemMeta}>
+                        {bill.successRate}% success rate
+                      </Text>
+                    </View>
+                    <View style={styles.savingsIndicator}>
+                      <Text style={styles.savingsText}>-${bill.potentialSavings}/mo</Text>
+                    </View>
+                    <ChevronRight size={18} color={Colors.textLight} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          ) : (
+            <View style={styles.emptyStateCard}>
+              <Text style={styles.emptyStateTitle}>No Negotiable Bills</Text>
+              <Text style={styles.emptyStateDescription}>
+                Add bills marked as negotiable to see potential savings here.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // Empty state when no data
+  const hasNoData = subscriptions.length === 0 && bills.length === 0;
+
+  if (hasNoData) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Control Center</Text>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={() => router.push('/settings' as any)}
+            >
+              <Settings size={22} color={Colors.textSecondary} />
+            </TouchableOpacity>
           </View>
 
-          <Text style={styles.sectionLabel}>Bills we can negotiate</Text>
-          <View style={styles.listContainer}>
-            {mockNegotiableBills.map((bill, index) => (
-              <TouchableOpacity
-                key={bill.id}
-                style={[
-                  styles.negotiateBillItem,
-                  index === mockNegotiableBills.length - 1 && styles.listItemLast,
-                ]}
-                onPress={() => setSelectedBill(bill)}
-              >
-                <View style={styles.listItemIcon}>
-                  {billIcons[bill.icon]}
-                </View>
-                <View style={styles.listItemContent}>
-                  <Text style={styles.listItemName}>{bill.name}</Text>
-                  <Text style={styles.listItemMeta}>
-                    {bill.successRate}% success rate
-                  </Text>
-                </View>
-                <View style={styles.savingsIndicator}>
-                  <Text style={styles.savingsText}>-${bill.potentialSavings}/mo</Text>
-                </View>
-                <ChevronRight size={18} color={Colors.textLight} />
-              </TouchableOpacity>
-            ))}
+          <View style={styles.emptyStateCardLarge}>
+            <View style={styles.emptyStateIcon}>
+              <Landmark size={32} color={Colors.primary} />
+            </View>
+            <Text style={styles.emptyStateTitle}>Manage Your Finances</Text>
+            <Text style={styles.emptyStateDescription}>
+              Connect your bank account to automatically track subscriptions and bills. Or add them manually to get started.
+            </Text>
+            <TouchableOpacity
+              style={styles.connectButton}
+              onPress={() => router.push('/settings' as any)}
+            >
+              <Text style={styles.connectButtonText}>Connect Bank Account</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </View>
@@ -341,209 +474,182 @@ export default function ManageScreen() {
               Bills
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'profiles' && styles.tabActive]}
-            onPress={() => setActiveTab('profiles')}
-          >
-            <Users
-              size={18}
-              color={activeTab === 'profiles' ? Colors.primary : Colors.textSecondary}
-            />
-            <Text
-              style={[styles.tabText, activeTab === 'profiles' && styles.tabTextActive]}
-            >
-              Profiles
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {activeTab === 'subscriptions' && (
           <>
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>{totalSubscriptions} active</Text>
-                <Text style={styles.summaryValue}>
-                  {formatCurrency(totalSubscriptionCost)}/month
+            {subscriptions.length > 0 ? (
+              <>
+                <View style={styles.summaryCard}>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>{totalSubscriptions} active</Text>
+                    <Text style={styles.summaryValue}>
+                      {formatCurrency(totalSubscriptionCost)}/month
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.listContainer}>
+                  {subscriptions.map((subscription, index) => (
+                    <TouchableOpacity
+                      key={subscription.id}
+                      style={[
+                        styles.listItem,
+                        index === subscriptions.length - 1 && styles.listItemLast,
+                      ]}
+                      onPress={() => handleSubscriptionPress(subscription)}
+                    >
+                      <View style={styles.listItemIcon}>
+                        {subscriptionIcons[getSubscriptionIcon(subscription.category)] || subscriptionIcons['default']}
+                      </View>
+                      <View style={styles.listItemContent}>
+                        <View style={styles.listItemHeader}>
+                          <Text style={styles.listItemName}>{subscription.name}</Text>
+                          {subscription.hours_used === 0 && (
+                            <View style={styles.warningBadge}>
+                              <AlertCircle size={12} color={Colors.warning} />
+                              <Text style={styles.warningText}>Unused</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.listItemMeta}>
+                          {subscription.hours_used !== undefined && subscription.hours_used > 0
+                            ? `${subscription.hours_used}h this month`
+                            : subscription.last_used_at
+                            ? `Last used ${formatDate(subscription.last_used_at)}`
+                            : subscription.category || 'Subscription'}
+                        </Text>
+                      </View>
+                      <View style={styles.listItemRight}>
+                        <Text style={styles.listItemAmount}>
+                          {formatCurrency(subscription.amount)}
+                        </Text>
+                        {subscription.next_billing_date && (
+                          <Text style={styles.listItemDate}>
+                            Next: {formatDate(subscription.next_billing_date)}
+                          </Text>
+                        )}
+                      </View>
+                      <ChevronRight size={18} color={Colors.textLight} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <View style={styles.emptyStateCard}>
+                <Text style={styles.emptyStateTitle}>No Subscriptions</Text>
+                <Text style={styles.emptyStateDescription}>
+                  Your subscriptions will appear here once you connect your bank account.
                 </Text>
               </View>
-            </View>
-
-            <View style={styles.listContainer}>
-              {mockSubscriptions.map((subscription, index) => (
-                <TouchableOpacity
-                  key={subscription.id}
-                  style={[
-                    styles.listItem,
-                    index === mockSubscriptions.length - 1 && styles.listItemLast,
-                  ]}
-                  onPress={() => handleSubscriptionPress(subscription)}
-                >
-                  <View style={styles.listItemIcon}>
-                    {subscriptionIcons[subscription.icon]}
-                  </View>
-                  <View style={styles.listItemContent}>
-                    <View style={styles.listItemHeader}>
-                      <Text style={styles.listItemName}>{subscription.name}</Text>
-                      {subscription.hoursUsed === 0 && (
-                        <View style={styles.warningBadge}>
-                          <AlertCircle size={12} color={Colors.warning} />
-                          <Text style={styles.warningText}>Unused</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.listItemMeta}>
-                      {subscription.hoursUsed !== undefined && subscription.hoursUsed > 0
-                        ? `${subscription.hoursUsed}h this month`
-                        : subscription.lastUsed
-                        ? `Last used ${subscription.lastUsed}`
-                        : subscription.category}
-                    </Text>
-                  </View>
-                  <View style={styles.listItemRight}>
-                    <Text style={styles.listItemAmount}>
-                      {formatCurrency(subscription.amount)}
-                    </Text>
-                    <Text style={styles.listItemDate}>
-                      Next: {formatDate(subscription.nextBilling)}
-                    </Text>
-                  </View>
-                  <ChevronRight size={18} color={Colors.textLight} />
-                </TouchableOpacity>
-              ))}
-            </View>
+            )}
           </>
         )}
 
         {activeTab === 'bills' && (
           <>
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Next due</Text>
-                <Text style={styles.summaryValue}>
-                  {formatDate(mockBills[0]?.dueDate || '')}
+            {bills.length > 0 ? (
+              <>
+                <View style={styles.summaryCard}>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Next due</Text>
+                    <Text style={styles.summaryValue}>
+                      {formatDueDay(bills[0]?.due_day || 1)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.listContainer}>
+                  {bills.map((bill, index) => (
+                    <TouchableOpacity
+                      key={bill.id}
+                      style={[
+                        styles.listItem,
+                        index === bills.length - 1 && styles.listItemLast,
+                      ]}
+                      onPress={() => handleBillPress(bill)}
+                    >
+                      <View style={styles.listItemIcon}>
+                        {billIcons[getBillIcon(bill.category)] || billIcons['default']}
+                      </View>
+                      <View style={styles.listItemContent}>
+                        <Text style={styles.listItemName}>{bill.name}</Text>
+                        <Text style={styles.listItemMeta}>
+                          {bill.is_auto_pay ? 'Auto-pay enabled' : 'Manual payment'}
+                        </Text>
+                      </View>
+                      <View style={styles.listItemRight}>
+                        <Text style={styles.listItemAmount}>
+                          {formatCurrency(bill.amount)}
+                        </Text>
+                        <Text style={styles.listItemDate}>
+                          Due: {formatDueDay(bill.due_day)}
+                        </Text>
+                      </View>
+                      <ChevronRight size={18} color={Colors.textLight} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <View style={styles.emptyStateCard}>
+                <Text style={styles.emptyStateTitle}>No Bills</Text>
+                <Text style={styles.emptyStateDescription}>
+                  Your bills will appear here once you connect your bank account.
                 </Text>
               </View>
-            </View>
-
-            <View style={styles.listContainer}>
-              {mockBills.map((bill, index) => (
-                <TouchableOpacity
-                  key={bill.id}
-                  style={[
-                    styles.listItem,
-                    index === mockBills.length - 1 && styles.listItemLast,
-                  ]}
-                  onPress={() => handleBillPress(bill)}
-                >
-                  <View style={styles.listItemIcon}>
-                    {billIcons[bill.icon]}
-                  </View>
-                  <View style={styles.listItemContent}>
-                    <Text style={styles.listItemName}>{bill.name}</Text>
-                    <Text style={styles.listItemMeta}>
-                      {bill.isAutoPay ? 'Auto-pay enabled' : 'Manual payment'}
-                    </Text>
-                  </View>
-                  <View style={styles.listItemRight}>
-                    <Text style={styles.listItemAmount}>
-                      {formatCurrency(bill.amount)}
-                    </Text>
-                    <Text style={styles.listItemDate}>
-                      Due: {formatDate(bill.dueDate)}
-                    </Text>
-                  </View>
-                  <ChevronRight size={18} color={Colors.textLight} />
-                </TouchableOpacity>
-              ))}
-            </View>
+            )}
           </>
         )}
 
-        {activeTab === 'profiles' && (
-          <View style={styles.listContainer}>
-            {mockProfiles.map((profile, index) => (
-              <TouchableOpacity
-                key={profile.id}
-                style={[
-                  styles.listItem,
-                  index === mockProfiles.length - 1 && styles.listItemLast,
-                ]}
-                onPress={() => handleProfilePress(profile)}
-              >
-                <View
-                  style={[
-                    styles.profileAvatar,
-                    profile.isActive && styles.profileAvatarActive,
-                  ]}
-                >
-                  <Text style={styles.profileAvatarText}>
-                    {profile.name.charAt(0)}
-                  </Text>
-                </View>
-                <View style={styles.listItemContent}>
-                  <Text style={styles.listItemName}>{profile.name}</Text>
-                  <Text style={styles.listItemMeta}>
-                    {profile.type.charAt(0).toUpperCase() + profile.type.slice(1)}
-                  </Text>
-                </View>
-                {profile.isActive && (
-                  <View style={styles.activeBadge}>
-                    <Text style={styles.activeBadgeText}>Active</Text>
-                  </View>
-                )}
-                <ChevronRight size={18} color={Colors.textLight} />
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={styles.addProfileButton} onPress={handleAddProfile}>
-              <Text style={styles.addProfileText}>+ Add profile</Text>
-            </TouchableOpacity>
-          </View>
+        {negotiableBills.length > 0 && (
+          <TouchableOpacity
+            style={styles.negotiateButton}
+            onPress={() => {
+              feedback.onButtonPress();
+              setShowNegotiation(true);
+            }}
+          >
+            <View style={styles.negotiateButtonContent}>
+              <Text style={styles.negotiateButtonTitle}>Negotiate Bills</Text>
+              <Text style={styles.negotiateButtonSubtitle}>
+                Potential Savings: ${totalPotentialSavings}/mo Found
+              </Text>
+            </View>
+            <View style={styles.negotiateButtonIcon}>
+              <ChevronRight size={24} color={Colors.white} />
+            </View>
+          </TouchableOpacity>
         )}
 
-        <TouchableOpacity
-          style={styles.negotiateButton}
-          onPress={() => {
-            feedback.onButtonPress();
-            setShowNegotiation(true);
-          }}
-        >
-          <View style={styles.negotiateButtonContent}>
-            <Text style={styles.negotiateButtonTitle}>Negotiate Bills</Text>
-            <Text style={styles.negotiateButtonSubtitle}>
-              Potential Savings: ${totalPotentialSavings}/mo Found
-            </Text>
-          </View>
-          <View style={styles.negotiateButtonIcon}>
-            <ChevronRight size={24} color={Colors.white} />
-          </View>
-        </TouchableOpacity>
+        {suggestions.length > 0 && (
+          <View style={styles.suggestionsSection}>
+            <View style={styles.suggestionHeader}>
+              <Sparkles size={18} color={Colors.primary} />
+              <Text style={styles.suggestionTitle}>Scout&apos;s Suggestions</Text>
+            </View>
 
-        <View style={styles.suggestionsSection}>
-          <View style={styles.suggestionHeader}>
-            <Sparkles size={18} color={Colors.primary} />
-            <Text style={styles.suggestionTitle}>Scout&apos;s Suggestions</Text>
+            {suggestions.map((suggestion) => (
+              <TouchableOpacity
+                key={suggestion.id}
+                style={styles.suggestionCard}
+                onPress={() => handleSuggestionPress(suggestion)}
+              >
+                <Text style={styles.suggestionCardTitle}>{suggestion.title}</Text>
+                <Text style={styles.suggestionCardDescription}>
+                  {suggestion.description}
+                </Text>
+                {suggestion.potential_savings && (
+                  <View style={styles.savingsIndicator}>
+                    <Text style={styles.savingsText}>
+                      Save up to {formatCurrency(suggestion.potential_savings)}/yr
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
-
-          {suggestions.map((suggestion) => (
-            <TouchableOpacity
-              key={suggestion.id}
-              style={styles.suggestionCard}
-              onPress={() => handleSuggestionPress(suggestion)}
-            >
-              <Text style={styles.suggestionCardTitle}>{suggestion.title}</Text>
-              <Text style={styles.suggestionCardDescription}>
-                {suggestion.description}
-              </Text>
-              {suggestion.potentialSavings && (
-                <View style={styles.savingsIndicator}>
-                  <Text style={styles.savingsText}>
-                    Save up to {formatCurrency(suggestion.potentialSavings)}/yr
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -553,6 +659,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: Colors.textSecondary,
   },
   scrollView: {
     flex: 1,
@@ -581,6 +696,53 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  emptyStateCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  emptyStateCardLarge: {
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  emptyStateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: `${Colors.primary}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  emptyStateDescription: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  connectButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 20,
+  },
+  connectButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.white,
   },
   tabs: {
     flexDirection: 'row',
@@ -700,46 +862,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600' as const,
     color: Colors.warning,
-  },
-  profileAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.surfaceSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  profileAvatarActive: {
-    backgroundColor: Colors.primary,
-  },
-  profileAvatarText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: Colors.textSecondary,
-  },
-  activeBadge: {
-    backgroundColor: `${Colors.success}20`,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  activeBadgeText: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: Colors.success,
-  },
-  addProfileButton: {
-    padding: 16,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-  },
-  addProfileText: {
-    fontSize: 15,
-    fontWeight: '600' as const,
-    color: Colors.primary,
   },
   suggestionsSection: {
     marginBottom: 20,

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Animated,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -22,17 +23,20 @@ import {
   Package,
   Clock,
   Settings,
-  MessageCircle,
+  Building2,
 } from 'lucide-react-native';
 import { feedback } from '@/services/feedback';
+import { dataService, FinancialSnapshot } from '@/services/data';
 
 import Colors from '@/constants/colors';
-import {
-  mockSnapshot,
-  mockTransactions,
-  mockScoutActions,
-  getGreeting,
-} from '@/mocks/data';
+
+// Helper to get greeting based on time of day
+const getGreeting = (): string => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+};
 
 const iconMap: Record<string, React.ReactNode> = {
   'shopping-cart': <ShoppingCart size={18} color={Colors.textSecondary} />,
@@ -47,8 +51,39 @@ export default function TodayScreen() {
   const router = useRouter();
   const scaleValue = React.useRef(new Animated.Value(1)).current;
   const [reminderSet, setReminderSet] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [snapshot, setSnapshot] = useState<FinancialSnapshot>({
+    netWorth: 0,
+    monthlyIncome: 0,
+    monthlyExpenses: 0,
+    netWorthChange: 0,
+  });
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [scoutActions, setScoutActions] = useState<any[]>([]);
 
-  const currentAction = mockScoutActions[0];
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [snapshotData, transactionsData, actionsData] = await Promise.all([
+          dataService.getFinancialSnapshot(),
+          dataService.getRecentTransactions(5),
+          dataService.getScoutActions(),
+        ]);
+
+        setSnapshot(snapshotData);
+        setTransactions(transactionsData);
+        setScoutActions(actionsData);
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const currentAction = scoutActions[0];
 
   const handleRemindLater = useCallback(() => {
     feedback.onButtonPress();
@@ -60,18 +95,19 @@ export default function TodayScreen() {
     );
   }, []);
 
-  const handleTransactionPress = useCallback((transaction: typeof mockTransactions[0]) => {
+  const handleTransactionPress = useCallback((transaction: any) => {
     feedback.onButtonPress();
+    const name = transaction.merchant_name || transaction.name || 'Transaction';
+    const category = Array.isArray(transaction.category) ? transaction.category[0] : (transaction.category || 'Other');
     Alert.alert(
-      transaction.merchant,
-      `${transaction.category}\nAmount: $${transaction.amount.toFixed(2)}\n\nTransaction details coming soon!`,
+      name,
+      `${category}\nAmount: $${Math.abs(transaction.amount).toFixed(2)}\n\nTransaction details coming soon!`,
       [{ text: 'OK' }]
     );
   }, []);
 
   const handleSeeAllTransactions = useCallback(() => {
     feedback.onButtonPress();
-    // Navigate to full transaction list (for now show alert)
     Alert.alert(
       'All Transactions',
       'Full transaction history coming soon!',
@@ -96,6 +132,11 @@ export default function TodayScreen() {
     });
   }, [router, scaleValue]);
 
+  const handleLinkAccount = useCallback(() => {
+    feedback.onButtonPress();
+    router.push('/link-account' as any);
+  }, [router]);
+
   const formatCurrency = (amount: number, showSign = false): string => {
     const formatted = new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -103,20 +144,31 @@ export default function TodayScreen() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(Math.abs(amount));
-    
+
     if (showSign && amount > 0) return `+${formatted}`;
     if (amount < 0) return `-${formatted}`;
     return formatted;
   };
 
-  const formatTransactionAmount = (amount: number, type: string): string => {
+  const formatTransactionAmount = (amount: number): string => {
     const formatted = new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 2,
-    }).format(amount);
-    return type === 'income' ? `+${formatted}` : `-${formatted}`;
+    }).format(Math.abs(amount));
+    return amount < 0 ? `-${formatted}` : `+${formatted}`;
   };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={styles.loadingText}>Loading your finances...</Text>
+      </View>
+    );
+  }
+
+  const hasNoData = snapshot.netWorth === 0 && transactions.length === 0;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -128,7 +180,7 @@ export default function TodayScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View>
-              <Text style={styles.greeting}>{getGreeting()}, Francis</Text>
+              <Text style={styles.greeting}>{getGreeting()}</Text>
               <Text style={styles.date}>
                 {new Date().toLocaleDateString('en-US', {
                   weekday: 'long',
@@ -155,10 +207,10 @@ export default function TodayScreen() {
             <ChevronRight size={18} color={Colors.textSecondary} />
           </View>
           <Text style={styles.netWorth}>
-            {formatCurrency(mockSnapshot.netWorth)}
+            {formatCurrency(snapshot.netWorth)}
           </Text>
           <View style={styles.changeContainer}>
-            {mockSnapshot.netWorthChange > 0 ? (
+            {snapshot.netWorthChange >= 0 ? (
               <TrendingUp size={16} color={Colors.success} />
             ) : (
               <TrendingDown size={16} color={Colors.alert} />
@@ -168,117 +220,160 @@ export default function TodayScreen() {
                 styles.changeText,
                 {
                   color:
-                    mockSnapshot.netWorthChange > 0
+                    snapshot.netWorthChange >= 0
                       ? Colors.success
                       : Colors.alert,
                 },
               ]}
             >
-              {formatCurrency(mockSnapshot.netWorthChange, true)} this month
+              {formatCurrency(snapshot.netWorthChange, true)} this month
             </Text>
           </View>
         </TouchableOpacity>
 
-        <View style={styles.scoutSection}>
-          <View style={styles.scoutHeader}>
-            <View style={styles.scoutTitleRow}>
-              <Sparkles size={18} color={Colors.primary} />
-              <Text style={styles.scoutTitle}>Scout&apos;s Pick for Today</Text>
+        {hasNoData && (
+          <TouchableOpacity style={styles.connectBankCard} onPress={handleLinkAccount}>
+            <View style={styles.connectBankIcon}>
+              <Building2 size={32} color={Colors.primary} />
             </View>
-          </View>
+            <Text style={styles.connectBankTitle}>Connect Your Bank</Text>
+            <Text style={styles.connectBankDescription}>
+              Link your accounts to see your real financial data and get personalized insights from Scout.
+            </Text>
+            <View style={styles.connectBankButton}>
+              <Text style={styles.connectBankButtonText}>Connect Now</Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
-          <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={handleActionPress}
-              activeOpacity={0.9}
-            >
-              <View style={styles.actionBadge}>
-                <Text style={styles.actionBadgeText}>
-                  {currentAction.type.charAt(0).toUpperCase() +
-                    currentAction.type.slice(1)}
-                </Text>
+        {currentAction && (
+          <View style={styles.scoutSection}>
+            <View style={styles.scoutHeader}>
+              <View style={styles.scoutTitleRow}>
+                <Sparkles size={18} color={Colors.primary} />
+                <Text style={styles.scoutTitle}>Scout&apos;s Pick for Today</Text>
               </View>
-              <Text style={styles.actionTitle}>{currentAction.title}</Text>
-              <Text style={styles.actionDescription}>
-                {currentAction.description}
-              </Text>
-              {currentAction.potentialSavings && (
-                <View style={styles.savingsRow}>
-                  <Text style={styles.savingsLabel}>Potential savings:</Text>
-                  <Text style={styles.savingsAmount}>
-                    {formatCurrency(currentAction.potentialSavings)}/yr
+            </View>
+
+            <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={handleActionPress}
+                activeOpacity={0.9}
+              >
+                <View style={styles.actionBadge}>
+                  <Text style={styles.actionBadgeText}>
+                    {currentAction.type?.charAt(0).toUpperCase() +
+                      currentAction.type?.slice(1) || 'Tip'}
                   </Text>
                 </View>
-              )}
-              <View style={styles.actionButtons}>
-                <TouchableOpacity
-                  style={styles.primaryButton}
-                  onPress={handleActionPress}
-                >
-                  <Text style={styles.primaryButtonText}>Do it now</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.secondaryButton, reminderSet && styles.secondaryButtonActive]}
-                  onPress={handleRemindLater}
-                >
-                  {reminderSet && <Clock size={14} color={Colors.primary} style={{ marginRight: 4 }} />}
-                  <Text style={[styles.secondaryButtonText, reminderSet && styles.secondaryButtonTextActive]}>
-                    {reminderSet ? 'Reminder set' : 'Remind me later'}
-                  </Text>
-                </TouchableOpacity>
+                <Text style={styles.actionTitle}>{currentAction.title}</Text>
+                <Text style={styles.actionDescription}>
+                  {currentAction.description}
+                </Text>
+                {currentAction.potential_savings && (
+                  <View style={styles.savingsRow}>
+                    <Text style={styles.savingsLabel}>Potential savings:</Text>
+                    <Text style={styles.savingsAmount}>
+                      {formatCurrency(currentAction.potential_savings)}/yr
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.actionButtons}>
+                  <TouchableOpacity
+                    style={styles.primaryButton}
+                    onPress={handleActionPress}
+                  >
+                    <Text style={styles.primaryButtonText}>Do it now</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.secondaryButton, reminderSet && styles.secondaryButtonActive]}
+                    onPress={handleRemindLater}
+                  >
+                    {reminderSet && <Clock size={14} color={Colors.primary} style={{ marginRight: 4 }} />}
+                    <Text style={[styles.secondaryButtonText, reminderSet && styles.secondaryButtonTextActive]}>
+                      {reminderSet ? 'Reminder set' : 'Remind me later'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+        )}
+
+        {!currentAction && !hasNoData && (
+          <View style={styles.scoutSection}>
+            <View style={styles.scoutHeader}>
+              <View style={styles.scoutTitleRow}>
+                <Sparkles size={18} color={Colors.primary} />
+                <Text style={styles.scoutTitle}>Ask Scout</Text>
               </View>
+            </View>
+            <TouchableOpacity
+              style={styles.askScoutCard}
+              onPress={() => router.push('/(tabs)/scout' as any)}
+            >
+              <Text style={styles.askScoutText}>
+                Chat with Scout to get personalized financial advice and insights.
+              </Text>
+              <ChevronRight size={20} color={Colors.primary} />
             </TouchableOpacity>
-          </Animated.View>
-        </View>
+          </View>
+        )}
 
         <View style={styles.flowSection}>
           <View style={styles.flowHeader}>
             <Text style={styles.flowTitle}>Recent Flow</Text>
-            <TouchableOpacity onPress={handleSeeAllTransactions}>
-              <Text style={styles.seeAllText}>See all</Text>
-            </TouchableOpacity>
+            {transactions.length > 0 && (
+              <TouchableOpacity onPress={handleSeeAllTransactions}>
+                <Text style={styles.seeAllText}>See all</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          <View style={styles.transactionList}>
-            {mockTransactions.slice(0, 5).map((transaction, index) => (
-              <TouchableOpacity
-                key={transaction.id}
-                style={[
-                  styles.transactionItem,
-                  index === mockTransactions.slice(0, 5).length - 1 &&
-                    styles.lastTransactionItem,
-                ]}
-                onPress={() => handleTransactionPress(transaction)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.transactionIcon}>
-                  {iconMap[transaction.icon]}
-                </View>
-                <View style={styles.transactionDetails}>
-                  <Text style={styles.transactionMerchant}>
-                    {transaction.merchant}
-                  </Text>
-                  <Text style={styles.transactionCategory}>
-                    {transaction.category}
-                  </Text>
-                </View>
-                <Text
+          {transactions.length === 0 ? (
+            <View style={styles.emptyTransactions}>
+              <Text style={styles.emptyText}>
+                No transactions yet. Connect your bank to see your spending.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.transactionList}>
+              {transactions.map((transaction, index) => (
+                <TouchableOpacity
+                  key={transaction.id || index}
                   style={[
-                    styles.transactionAmount,
-                    {
-                      color:
-                        transaction.type === 'income'
-                          ? Colors.success
-                          : Colors.text,
-                    },
+                    styles.transactionItem,
+                    index === transactions.length - 1 && styles.lastTransactionItem,
                   ]}
+                  onPress={() => handleTransactionPress(transaction)}
+                  activeOpacity={0.7}
                 >
-                  {formatTransactionAmount(transaction.amount, transaction.type)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                  <View style={styles.transactionIcon}>
+                    <ShoppingCart size={18} color={Colors.textSecondary} />
+                  </View>
+                  <View style={styles.transactionDetails}>
+                    <Text style={styles.transactionMerchant}>
+                      {transaction.merchant_name || transaction.name || 'Transaction'}
+                    </Text>
+                    <Text style={styles.transactionCategory}>
+                      {Array.isArray(transaction.category) ? transaction.category[0] : (transaction.category || 'Other')}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.transactionAmount,
+                      {
+                        color: transaction.amount < 0 ? Colors.text : Colors.success,
+                      },
+                    ]}
+                  >
+                    {formatTransactionAmount(transaction.amount)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -289,6 +384,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: Colors.textSecondary,
   },
   scrollView: {
     flex: 1,
@@ -368,6 +472,49 @@ const styles = StyleSheet.create({
   changeText: {
     fontSize: 14,
     fontWeight: '600' as const,
+  },
+  connectBankCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderStyle: 'dashed',
+  },
+  connectBankIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: `${Colors.primary}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  connectBankTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  connectBankDescription: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  connectBankButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  connectBankButtonText: {
+    color: Colors.white,
+    fontSize: 15,
+    fontWeight: '600',
   },
   scoutSection: {
     marginBottom: 24,
@@ -474,6 +621,21 @@ const styles = StyleSheet.create({
   secondaryButtonTextActive: {
     color: Colors.primary,
   },
+  askScoutCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  askScoutText: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginRight: 12,
+  },
   flowSection: {
     marginBottom: 20,
   },
@@ -492,6 +654,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.primary,
     fontWeight: '500' as const,
+  },
+  emptyTransactions: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   transactionList: {
     backgroundColor: Colors.surface,

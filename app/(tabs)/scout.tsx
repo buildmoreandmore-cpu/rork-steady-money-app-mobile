@@ -16,14 +16,7 @@ import { Send, Sparkles, User, Trash2 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { scoutService, ChatMessage } from '@/services/scout';
 import { feedback } from '@/services/feedback';
-import {
-  mockSnapshot,
-  mockTransactions,
-  mockSubscriptions,
-  mockBills,
-  mockTimeline,
-  mockProfiles,
-} from '@/mocks/data';
+import { dataService } from '@/services/data';
 
 const SUGGESTED_PROMPTS = [
   "Can I afford a $500 purchase?",
@@ -40,61 +33,88 @@ export default function ScoutScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    // Set full dashboard context for Scout
-    scoutService.setContext({
-      // Financial snapshot
-      netWorth: mockSnapshot.netWorth,
-      netWorthChange: mockSnapshot.netWorthChange,
-      monthlyIncome: mockSnapshot.monthlyIncome,
-      monthlyExpenses: mockSnapshot.monthlyExpenses,
-      savingsRate: mockSnapshot.savingsRate,
+    // Load real data for Scout context
+    const loadScoutContext = async () => {
+      try {
+        // Fetch real data from Supabase
+        const [snapshot, subscriptions, bills, goals, transactions, netWorthHistory] = await Promise.all([
+          dataService.getFinancialSnapshot(),
+          dataService.getSubscriptions(),
+          dataService.getBills(),
+          dataService.getGoals(),
+          dataService.getRecentTransactions(10),
+          dataService.getNetWorthHistory(),
+        ]);
 
-      // Transactions
-      recentTransactions: mockTransactions.map(t => ({
-        merchant: t.merchant,
-        amount: t.amount,
-        category: t.category,
-        type: t.type,
-      })),
+        // Calculate savings rate if we have income and expenses
+        const savingsRate = snapshot.monthlyIncome > 0
+          ? ((snapshot.monthlyIncome - snapshot.monthlyExpenses) / snapshot.monthlyIncome) * 100
+          : 0;
 
-      // Subscriptions with usage details
-      subscriptions: mockSubscriptions.map(s => ({
-        name: s.name,
-        amount: s.amount,
-        hoursUsed: s.hoursUsed,
-        lastUsed: s.lastUsed,
-      })),
+        // Set context with real data (empty arrays/zeros if no data yet)
+        scoutService.setContext({
+          // Financial snapshot
+          netWorth: snapshot.netWorth,
+          netWorthChange: snapshot.netWorthChange,
+          monthlyIncome: snapshot.monthlyIncome,
+          monthlyExpenses: snapshot.monthlyExpenses,
+          savingsRate: savingsRate,
 
-      // Bills with due dates
-      bills: mockBills.map(b => ({
-        name: b.name,
-        amount: b.amount,
-        dueDate: b.dueDate,
-        isAutoPay: b.isAutoPay,
-      })),
+          // Transactions
+          recentTransactions: transactions.map((t: any) => ({
+            merchant: t.merchant_name || t.name || 'Unknown',
+            amount: t.amount,
+            category: Array.isArray(t.category) ? t.category[0] : (t.category || 'Other'),
+            type: t.amount < 0 ? 'expense' : 'income',
+          })),
 
-      // Budget allocations (default 50/30/20)
-      budget: {
-        fixedPercent: 50,
-        strategicPercent: 20,
-        lifestylePercent: 30,
-      },
+          // Subscriptions
+          subscriptions: subscriptions.map((s: any) => ({
+            name: s.name,
+            amount: s.amount,
+            hoursUsed: s.hours_used,
+            lastUsed: s.last_used_at,
+          })),
 
-      // Timeline/net worth history
-      timeline: mockTimeline.map(t => ({
-        label: t.label,
-        netWorth: t.netWorth,
-        isFuture: t.isFuture,
-      })),
+          // Bills
+          bills: bills.map((b: any) => ({
+            name: b.name,
+            amount: b.amount,
+            dueDate: `Day ${b.due_day}`,
+            isAutoPay: b.is_auto_pay,
+          })),
 
-      // Profiles
-      profiles: mockProfiles.map(p => ({
-        name: p.name,
-        type: p.type,
-        balance: p.balance,
-        isActive: p.isActive,
-      })),
-    });
+          // Goals
+          goals: goals.map((g: any) => ({
+            name: g.name,
+            target: g.target_amount,
+            current: g.current_amount,
+          })),
+
+          // Budget allocations (from settings or defaults)
+          budget: {
+            fixedPercent: 50,
+            strategicPercent: 20,
+            lifestylePercent: 30,
+          },
+
+          // Timeline/net worth history
+          timeline: netWorthHistory.map((n: any) => ({
+            label: new Date(n.date).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+            netWorth: n.net_worth,
+            isFuture: new Date(n.date) > new Date(),
+          })),
+        });
+
+        console.log('Scout context loaded with real data');
+      } catch (error) {
+        console.error('Error loading Scout context:', error);
+        // Set empty context if data fails to load
+        scoutService.setContext({});
+      }
+    };
+
+    loadScoutContext();
 
     // Load conversation history
     setMessages(scoutService.getConversationHistory());
@@ -104,7 +124,7 @@ export default function ScoutScreen() {
       const welcomeMessage: ChatMessage = {
         id: 'welcome',
         role: 'assistant',
-        content: "Hey! I'm Scout, your personal financial advisor. I'm here to help you make smart money decisions and find easy wins in your budget.\n\nWhat's on your mind today?",
+        content: "Hey! I'm Scout, your personal financial advisor. I'm here to help you make smart money decisions and find easy wins in your budget.\n\nConnect your bank account to get personalized insights, or ask me general financial questions!",
         timestamp: new Date(),
       };
       setMessages([welcomeMessage]);

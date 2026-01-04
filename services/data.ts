@@ -1,10 +1,10 @@
 /**
  * Data Service
- * Handles all Supabase data operations with fallback to mock data
+ * Handles all Supabase data operations - NO MOCK DATA
+ * Returns empty/zero values when no real data exists
  */
 
 import { supabase } from './supabase';
-import { mockSnapshot, mockSubscriptions, mockBills, mockTimeline, mockTransactions, mockScoutActions } from '@/mocks/data';
 
 // Types
 export interface Subscription {
@@ -70,9 +70,15 @@ export interface FinancialSnapshot {
   netWorthChange: number;
 }
 
-class DataService {
-  private useMockData = false; // Use real data from Supabase/Plaid
+// Empty/default values - NO MOCK DATA
+const emptySnapshot: FinancialSnapshot = {
+  netWorth: 0,
+  monthlyIncome: 0,
+  monthlyExpenses: 0,
+  netWorthChange: 0,
+};
 
+class DataService {
   // Check if user has real data
   async hasRealData(): Promise<boolean> {
     try {
@@ -90,15 +96,14 @@ class DataService {
     }
   }
 
-  // Financial Snapshot
+  // Financial Snapshot - returns zeros if no data
   async getFinancialSnapshot(): Promise<FinancialSnapshot> {
-    if (this.useMockData) {
-      return mockSnapshot;
-    }
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return mockSnapshot;
+      if (!user) {
+        console.log('No user logged in, returning empty snapshot');
+        return emptySnapshot;
+      }
 
       const { data, error } = await supabase
         .from('net_worth_history')
@@ -107,7 +112,15 @@ class DataService {
         .order('date', { ascending: false })
         .limit(2);
 
-      if (error || !data?.length) return mockSnapshot;
+      if (error) {
+        console.error('Error fetching financial snapshot:', error);
+        return emptySnapshot;
+      }
+
+      if (!data?.length) {
+        console.log('No financial data found, returning empty snapshot');
+        return emptySnapshot;
+      }
 
       const current = data[0];
       const previous = data[1];
@@ -118,25 +131,14 @@ class DataService {
         monthlyExpenses: current.monthly_expenses ?? 0,
         netWorthChange: previous ? current.net_worth - previous.net_worth : 0,
       };
-    } catch {
-      return mockSnapshot;
+    } catch (err) {
+      console.error('Exception in getFinancialSnapshot:', err);
+      return emptySnapshot;
     }
   }
 
-  // Subscriptions
+  // Subscriptions - returns empty array if no data
   async getSubscriptions(): Promise<Subscription[]> {
-    if (this.useMockData) {
-      return mockSubscriptions.map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        amount: s.amount,
-        billing_cycle: 'monthly',
-        is_active: s.isActive,
-        hours_used: s.hoursUsed,
-        last_used_at: s.lastUsed,
-      }));
-    }
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
@@ -147,8 +149,14 @@ class DataService {
         .eq('user_id', user.id)
         .order('amount', { ascending: false });
 
-      return error ? [] : data;
-    } catch {
+      if (error) {
+        console.error('Error fetching subscriptions:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (err) {
+      console.error('Exception in getSubscriptions:', err);
       return [];
     }
   }
@@ -196,19 +204,8 @@ class DataService {
     }
   }
 
-  // Bills
+  // Bills - returns empty array if no data
   async getBills(): Promise<Bill[]> {
-    if (this.useMockData) {
-      return mockBills.map((b: any) => ({
-        id: b.id,
-        name: b.name,
-        amount: b.amount,
-        due_day: b.dueDay,
-        is_auto_pay: b.autoPay,
-        is_negotiable: false,
-      }));
-    }
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
@@ -219,8 +216,14 @@ class DataService {
         .eq('user_id', user.id)
         .order('due_day', { ascending: true });
 
-      return error ? [] : data;
-    } catch {
+      if (error) {
+        console.error('Error fetching bills:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (err) {
+      console.error('Exception in getBills:', err);
       return [];
     }
   }
@@ -242,12 +245,8 @@ class DataService {
     }
   }
 
-  // Goals
+  // Goals - returns empty array if no data
   async getGoals(): Promise<Goal[]> {
-    if (this.useMockData) {
-      return [];
-    }
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
@@ -258,8 +257,14 @@ class DataService {
         .eq('user_id', user.id)
         .order('priority', { ascending: true });
 
-      return error ? [] : data;
-    } catch {
+      if (error) {
+        console.error('Error fetching goals:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (err) {
+      console.error('Exception in getGoals:', err);
       return [];
     }
   }
@@ -288,7 +293,7 @@ class DataService {
         .update({
           current_amount: currentAmount,
           updated_at: new Date().toISOString(),
-          is_completed: false, // Will be set by trigger or manual check
+          is_completed: false,
         })
         .eq('id', id);
 
@@ -298,18 +303,8 @@ class DataService {
     }
   }
 
-  // Net Worth History / Timeline
+  // Net Worth History / Timeline - returns empty array if no data
   async getNetWorthHistory(): Promise<NetWorthSnapshot[]> {
-    if (this.useMockData) {
-      return mockTimeline.map((t: any, i: number) => ({
-        id: `mock-${i}`,
-        date: t.date,
-        net_worth: t.amount,
-        total_assets: t.amount,
-        total_liabilities: 0,
-      }));
-    }
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
@@ -320,8 +315,14 @@ class DataService {
         .eq('user_id', user.id)
         .order('date', { ascending: true });
 
-      return error ? [] : data;
-    } catch {
+      if (error) {
+        console.error('Error fetching net worth history:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (err) {
+      console.error('Exception in getNetWorthHistory:', err);
       return [];
     }
   }
@@ -389,12 +390,8 @@ class DataService {
     }
   }
 
-  // Transactions (from Plaid or manual)
+  // Transactions (from Plaid or manual) - returns empty array if no data
   async getRecentTransactions(limit = 10) {
-    if (this.useMockData) {
-      return mockTransactions.slice(0, limit);
-    }
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
@@ -406,18 +403,20 @@ class DataService {
         .order('date', { ascending: false })
         .limit(limit);
 
-      return error ? [] : data;
-    } catch {
+      if (error) {
+        console.error('Error fetching transactions:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (err) {
+      console.error('Exception in getRecentTransactions:', err);
       return [];
     }
   }
 
-  // Scout Actions
+  // Scout Actions - returns empty array if no data
   async getScoutActions() {
-    if (this.useMockData) {
-      return mockScoutActions;
-    }
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
@@ -431,8 +430,14 @@ class DataService {
         .order('priority', { ascending: true })
         .limit(5);
 
-      return error ? [] : data;
-    } catch {
+      if (error) {
+        console.error('Error fetching scout actions:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (err) {
+      console.error('Exception in getScoutActions:', err);
       return [];
     }
   }

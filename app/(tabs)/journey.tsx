@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,19 +6,99 @@ import {
   ScrollView,
   TouchableOpacity,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { TrendingUp, ChevronRight, Clock, Target, Zap, X, DollarSign, PiggyBank, TrendingDown } from 'lucide-react-native';
+import { TrendingUp, ChevronRight, Clock, Target, Zap, X, DollarSign, PiggyBank, TrendingDown, Landmark } from 'lucide-react-native';
 
 import Colors from '@/constants/colors';
-import { mockTimeline } from '@/mocks/data';
+import { dataService } from '@/services/data';
 import { feedback } from '@/services/feedback';
+
+interface TimelinePoint {
+  date: string;
+  label: string;
+  netWorth: number;
+  isFuture: boolean;
+}
 
 export default function JourneyScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [showChangeModal, setShowChangeModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
+  const [monthlyGrowth, setMonthlyGrowth] = useState(0);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const netWorthHistory = await dataService.getNetWorthHistory();
+
+        if (netWorthHistory.length > 0) {
+          // Transform net worth history to timeline format
+          const pastPoints: TimelinePoint[] = netWorthHistory.map((n) => {
+            const date = new Date(n.date);
+            const isToday = new Date().toDateString() === date.toDateString();
+            return {
+              date: isToday ? 'Today' : date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+              label: isToday ? 'Current net worth' : '',
+              netWorth: n.net_worth,
+              isFuture: false,
+            };
+          });
+
+          // Calculate average monthly growth
+          if (netWorthHistory.length >= 2) {
+            const oldest = netWorthHistory[0];
+            const newest = netWorthHistory[netWorthHistory.length - 1];
+            const monthsDiff = Math.max(1, Math.round(
+              (new Date(newest.date).getTime() - new Date(oldest.date).getTime()) / (30 * 24 * 60 * 60 * 1000)
+            ));
+            const totalGrowth = newest.net_worth - oldest.net_worth;
+            setMonthlyGrowth(Math.round(totalGrowth / monthsDiff));
+          }
+
+          // Generate future projections based on current growth rate
+          const currentNetWorth = netWorthHistory[netWorthHistory.length - 1]?.net_worth || 0;
+          const avgMonthlyGrowth = monthlyGrowth > 0 ? monthlyGrowth : 1000; // Default projection
+
+          const futurePoints: TimelinePoint[] = [];
+          const projectionMonths = [3, 6, 12];
+
+          projectionMonths.forEach((months) => {
+            const futureDate = new Date();
+            futureDate.setMonth(futureDate.getMonth() + months);
+            futurePoints.push({
+              date: futureDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+              label: `+${months} months`,
+              netWorth: currentNetWorth + (avgMonthlyGrowth * months),
+              isFuture: true,
+            });
+          });
+
+          // Add Today point if not already present
+          const hasToday = pastPoints.some(p => p.date === 'Today');
+          if (!hasToday && pastPoints.length > 0) {
+            pastPoints[pastPoints.length - 1] = {
+              ...pastPoints[pastPoints.length - 1],
+              date: 'Today',
+              label: 'Current net worth',
+            };
+          }
+
+          setTimeline([...pastPoints, ...futurePoints]);
+        }
+      } catch (error) {
+        console.error('Error loading journey data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [monthlyGrowth]);
 
   const handleWhatCouldChange = useCallback(() => {
     feedback.onButtonPress();
@@ -30,19 +110,19 @@ export default function JourneyScreen() {
       icon: <DollarSign size={20} color={Colors.success} />,
       title: 'Increase income by $500/mo',
       impact: '+$6,000/year',
-      newGoal: 'Reach $100k in 29 months',
+      newGoal: 'Accelerate your goals',
     },
     {
       icon: <PiggyBank size={20} color={Colors.primary} />,
       title: 'Save an extra 10%',
       impact: '+$3,600/year',
-      newGoal: 'Reach $100k in 32 months',
+      newGoal: 'Build wealth faster',
     },
     {
       icon: <TrendingDown size={20} color={Colors.warning} />,
       title: 'Cut subscriptions by $100/mo',
       impact: '+$1,200/year',
-      newGoal: 'Reach $100k in 34 months',
+      newGoal: 'Free up cash flow',
     },
   ];
 
@@ -55,14 +135,56 @@ export default function JourneyScreen() {
     }).format(amount);
   };
 
-  
-
-  const currentNetWorth = mockTimeline.find((p) => p.date === 'Today')?.netWorth || 0;
-  const startNetWorth = mockTimeline[0]?.netWorth || 0;
-  const endNetWorth = mockTimeline[mockTimeline.length - 1]?.netWorth || 0;
+  const currentNetWorth = timeline.find((p) => p.date === 'Today')?.netWorth || 0;
+  const startNetWorth = timeline.filter(p => !p.isFuture)[0]?.netWorth || 0;
+  const endNetWorth = timeline.filter(p => !p.isFuture).slice(-1)[0]?.netWorth || 0;
   const totalGrowth = endNetWorth - startNetWorth;
-  const currentGrowth = currentNetWorth - startNetWorth;
-  const growthPercentage = Math.round((currentGrowth / totalGrowth) * 100);
+  const growthPercentage = totalGrowth > 0 ? Math.round((totalGrowth / Math.abs(startNetWorth || 1)) * 100) : 0;
+
+  // Show empty state if no data
+  if (!isLoading && timeline.length === 0) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Your Journey</Text>
+            <Text style={styles.subtitle}>
+              See where you have been and where you are headed
+            </Text>
+          </View>
+
+          <View style={styles.emptyStateCard}>
+            <View style={styles.emptyStateIcon}>
+              <Landmark size={32} color={Colors.primary} />
+            </View>
+            <Text style={styles.emptyStateTitle}>Start Your Journey</Text>
+            <Text style={styles.emptyStateDescription}>
+              Connect your bank account to see your financial journey over time. Track your progress and see where you're headed.
+            </Text>
+            <TouchableOpacity
+              style={styles.connectButton}
+              onPress={() => router.push('/settings' as any)}
+            >
+              <Text style={styles.connectButtonText}>Connect Bank Account</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={styles.loadingText}>Loading your journey...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -84,19 +206,21 @@ export default function JourneyScreen() {
               <TrendingUp size={24} color={Colors.primary} />
             </View>
             <View style={styles.progressInfo}>
-              <Text style={styles.progressLabel}>Progress toward 1-year goal</Text>
-              <Text style={styles.progressValue}>{growthPercentage}% complete</Text>
+              <Text style={styles.progressLabel}>Net worth growth</Text>
+              <Text style={styles.progressValue}>
+                {growthPercentage > 0 ? `+${growthPercentage}%` : `${growthPercentage}%`} since tracking
+              </Text>
             </View>
           </View>
           <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${growthPercentage}%` }]} />
+            <View style={[styles.progressFill, { width: `${Math.min(100, Math.abs(growthPercentage))}%` }]} />
           </View>
         </View>
 
         <View style={styles.timelineSection}>
           <Text style={styles.sectionTitle}>Where you have been</Text>
           <View style={styles.timelineContainer}>
-            {mockTimeline
+            {timeline
               .filter((point) => !point.isFuture)
               .map((point, index, arr) => (
                 <View key={point.date} style={styles.timelineItem}>
@@ -145,7 +269,7 @@ export default function JourneyScreen() {
             <Text style={styles.sectionSubtitle}>at current pace</Text>
           </View>
           <View style={styles.timelineContainer}>
-            {mockTimeline
+            {timeline
               .filter((point) => point.isFuture)
               .map((point, index, arr) => (
                 <View key={point.date} style={styles.timelineItem}>
@@ -209,7 +333,7 @@ export default function JourneyScreen() {
                   onPress={() => {
                     feedback.onButtonPress();
                     setShowChangeModal(false);
-                    router.push('/(tabs)/decide' as any);
+                    router.push('/(tabs)/scout' as any);
                   }}
                 >
                   <View style={styles.scenarioIcon}>{scenario.icon}</View>
@@ -227,10 +351,10 @@ export default function JourneyScreen() {
                 onPress={() => {
                   feedback.onButtonPress();
                   setShowChangeModal(false);
-                  router.push('/(tabs)/decide' as any);
+                  router.push('/(tabs)/scout' as any);
                 }}
               >
-                <Text style={styles.exploreButtonText}>Try custom scenario</Text>
+                <Text style={styles.exploreButtonText}>Ask Scout for advice</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -238,14 +362,16 @@ export default function JourneyScreen() {
 
         <View style={styles.insightsSection}>
           <Text style={styles.insightsTitle}>Journey insights</Text>
-          
+
           <View style={styles.insightCard}>
             <View style={styles.insightIcon}>
               <Clock size={20} color={Colors.success} />
             </View>
             <View style={styles.insightContent}>
               <Text style={styles.insightLabel}>Average monthly growth</Text>
-              <Text style={styles.insightValue}>+$1,508</Text>
+              <Text style={styles.insightValue}>
+                {monthlyGrowth >= 0 ? '+' : ''}{formatCurrency(monthlyGrowth)}
+              </Text>
             </View>
           </View>
 
@@ -254,8 +380,8 @@ export default function JourneyScreen() {
               <Target size={20} color={Colors.primary} />
             </View>
             <View style={styles.insightContent}>
-              <Text style={styles.insightLabel}>Months to $100k</Text>
-              <Text style={styles.insightValue}>35 months</Text>
+              <Text style={styles.insightLabel}>Current net worth</Text>
+              <Text style={styles.insightValue}>{formatCurrency(currentNetWorth)}</Text>
             </View>
           </View>
         </View>
@@ -268,6 +394,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: Colors.textSecondary,
   },
   scrollView: {
     flex: 1,
@@ -290,6 +425,46 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: Colors.textSecondary,
+  },
+  emptyStateCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  emptyStateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: `${Colors.primary}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  emptyStateDescription: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  connectButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  connectButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.white,
   },
   progressOverview: {
     backgroundColor: Colors.surface,
@@ -386,7 +561,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderWidth: 2,
     borderColor: Colors.textLight,
-    borderStyle: 'dashed',
   },
   timelineLine: {
     flex: 1,
