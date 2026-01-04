@@ -56,7 +56,8 @@
       "production": {
         "ios": {
           "appleId": "martinjdfrancis@gmail.com",
-          "appleTeamId": "N2AKW5AB3L"
+          "appleTeamId": "N2AKW5AB3L",
+          "ascAppId": "6757211033"
         }
       }
     }
