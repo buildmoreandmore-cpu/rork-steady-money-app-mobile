@@ -71,7 +71,7 @@ export interface FinancialSnapshot {
 }
 
 class DataService {
-  private useMockData = true; // Will be false when real data is available
+  private useMockData = false; // Use real data from Supabase/Plaid
 
   // Check if user has real data
   async hasRealData(): Promise<boolean> {
