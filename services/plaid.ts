@@ -42,10 +42,16 @@ const getAuthHeaders = async () => {
 export const createLinkToken = async (): Promise<string> => {
   const headers = await getAuthHeaders();
 
+  // Get user ID from session
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.id) {
+    throw new Error('Not authenticated');
+  }
+
   const response = await fetch(`${SUPABASE_URL}/functions/v1/plaid-create-link-token`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({}),
+    body: JSON.stringify({ user_id: session.user.id }),
   });
 
   if (!response.ok) {
