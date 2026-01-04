@@ -22,7 +22,8 @@
         "UIBackgroundModes": [
           "audio"
         ],
-        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone"
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -35,7 +36,11 @@
         "USE_BIOMETRIC",
         "USE_FINGERPRINT",
         "android.permission.VIBRATE",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -65,6 +70,15 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": "https://steadymoney.app/"
+      },
+      "eas": {
+        "projectId": "4e1a8a84-a920-4b07-b6a9-99b2b1cbae27"
+      }
+    },
+    "owner": "martinjdfrancis"
   }
 }
