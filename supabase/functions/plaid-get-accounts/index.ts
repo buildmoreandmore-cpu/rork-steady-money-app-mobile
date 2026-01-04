@@ -41,9 +41,25 @@ serve(async (req) => {
 
     if (itemsError) {
       console.error('Error fetching items:', itemsError);
+      // If table doesn't exist, return empty array (user hasn't linked any accounts)
+      if (itemsError.code === '42P01' || itemsError.message?.includes('does not exist')) {
+        console.log('plaid_items table does not exist, returning empty accounts');
+        return new Response(
+          JSON.stringify({ accounts: [] }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch items' }),
+        JSON.stringify({ error: 'Failed to fetch items', details: itemsError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // If no items found, return empty array
+    if (!plaidItems || plaidItems.length === 0) {
+      return new Response(
+        JSON.stringify({ accounts: [] }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

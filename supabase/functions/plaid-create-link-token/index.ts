@@ -21,6 +21,23 @@ serve(async (req) => {
   }
 
   try {
+    // Log environment variables status (not the actual values)
+    console.log('Environment check:', {
+      hasClientId: !!PLAID_CLIENT_ID,
+      hasSecret: !!PLAID_SECRET,
+      plaidEnv: PLAID_ENV,
+      plaidBaseUrl: PLAID_BASE_URL,
+    });
+
+    // Check for missing credentials
+    if (!PLAID_CLIENT_ID || !PLAID_SECRET) {
+      console.error('Missing Plaid credentials');
+      return new Response(
+        JSON.stringify({ error: 'Plaid credentials not configured. Please set PLAID_CLIENT_ID and PLAID_SECRET in Supabase Secrets.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { user_id } = await req.json();
 
     if (!user_id) {
@@ -52,9 +69,14 @@ serve(async (req) => {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('Plaid error:', data);
+      console.error('Plaid API error:', JSON.stringify(data));
+      const errorMsg = data.error_message || data.display_message || 'Failed to create link token';
       return new Response(
-        JSON.stringify({ error: data.error_message || 'Failed to create link token' }),
+        JSON.stringify({
+          error: errorMsg,
+          plaid_error_code: data.error_code,
+          plaid_error_type: data.error_type,
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

@@ -47,12 +47,19 @@ export const createLinkToken = async (): Promise<string> => {
 
   if (error) {
     console.error('Plaid create link token error:', error);
-    throw new Error(error.message || 'Failed to create link token');
+    // Extract meaningful error message
+    const errorMsg = error.message || 'Failed to create link token';
+    throw new Error(errorMsg);
+  }
+
+  if (data?.error) {
+    console.error('Plaid API error:', data);
+    throw new Error(data.error);
   }
 
   if (!data?.link_token) {
     console.error('No link token in response:', data);
-    throw new Error(data?.error || 'No link token returned');
+    throw new Error('Unable to connect to Plaid. Please try again.');
   }
 
   return data.link_token;
